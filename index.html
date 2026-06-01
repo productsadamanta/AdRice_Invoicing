@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<!-- Wersja: [2.5.0] - 2026-04-30 | Zmiany: patrz CHANGELOG.md -->
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdRice Invoicing Hub</title>
+    <!-- Czcionki Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse do parsowania CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: -webkit-linear-gradient(45deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 0.5rem 0;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .file-input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px dashed var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]:hover {
+            border-color: var(--accent);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        button.generate-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(45deg, #2563eb, #4f46e5);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.39);
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        button.generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        }
+
+        button.generate-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Balance Panel Styles */
+        .balance-panel {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+        }
+        .balance-panel h3 {
+            font-size: 0.85rem;
+            margin: 0 0 1rem 0;
+            color: var(--success);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .balance-table {
+            width: 100%;
+            font-size: 0.75rem;
+            border-collapse: collapse;
+        }
+        .balance-table td {
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .balance-table .acc { font-weight: 700; color: var(--accent); }
+        .balance-table .amt { text-align: right; font-weight: 600; color: var(--success); }
+        .balance-empty { font-size: 0.7rem; color: var(--text-muted); text-align: center; font-style: italic; }
+
+        /* Invoice Results Section */
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .invoice-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .invoice-card.active {
+            display: block;
+        }
+
+        .history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
+        .history-table th, .history-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .history-table th { color: var(--text-muted); font-weight: 500; }
+        .tag { background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; text-transform: uppercase; }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .invoice-header h3 {
+            margin: 0;
+            color: #f1f5f9;
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        td.price {
+            font-family: monospace;
+            color: #fbbf24;
+        }
+
+        /* Copy Name Button */
+        .copy-item-btn {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-right: 8px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .copy-item-btn:hover {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+        }
+        .copy-item-btn:active { transform: scale(0.95); }
+
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--success);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Modal Styles */
+        .codeboxes-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-inner {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            padding: 2rem;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            color: var(--text-muted);
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: white;
+        }
+
+        pre.code-box {
+            background: #1e293b;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            color: #a5b4fc;
+            font-family: monospace;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--glass-border);
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Database & Correction UI */
+        .db-management {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .db-management select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1e293b;
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .db-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 0.5rem;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .correction-summary {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.1) 100%);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .stat-delta {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #fbbf24;
+        }
+
+        .confirm-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .confirm-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.5);
+        }
+
+        .no-id-warning {
+            color: #ef4444;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .negative-warning {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #f87171;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        
+        .active-copied-row td {
+            background-color: rgba(16, 185, 129, 0.35) !important;
+            transition: background-color 0.3s ease;
+        }
+        .active-copied-row {
+            outline: 1px solid rgba(16, 185, 129, 0.6);
+        }
+
+        /* Summary Panel Styles */
+        .summary-panel {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+            border: 1px solid var(--accent);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .summary-header h2 {
+            margin: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+            font-size: 1.25rem;
+            color: var(--text-main);
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .summary-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-table td {
+            font-weight: 500;
+        }
+
+        .summary-table .company-name {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .summary-table .leads-count {
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .summary-table .invoice-value {
+            color: #fbbf24;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .summary-table th:last-child {
+            text-align: right;
+        }
+
+        .btn-copy-summary {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-copy-summary:hover {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>AdRice Invoicing Hub</h1>
+        <p>Zautomatyzowany generator danych do fakturowania</p>
+    </div>
+
+    <div class="container">
+        <!-- Sidebar with Inputs -->
+        <div class="panel">
+            <button class="generate-btn" id="openScraperBtn"
+                style="background: linear-gradient(45deg, #10b981, #059669); margin-bottom: 1.5rem; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);">Kopiuj
+                Kod Scrapera AdRice</button>
+
+            <!-- Month Management UI -->
+            <div class="db-management">
+                <label style="display:block; margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-muted);">Aktywny
+                    Miesiąc Rozliczeniowy</label>
+                <select id="activeMonth">
+                    <!-- JavaScript will fill this -->
+                </select>
+                <div class="db-actions" style="margin-bottom:0.5rem;">
+                    <button class="btn-small" onclick="importDB()" title="Odtwórz bazę z pliku backup .json">📂 Importuj backup</button>
+                    <button class="btn-small" onclick="exportDB()" title="Pobierz aktualny stan bazy jako plik .json">Eksportuj bazę</button>
+                </div>
+                <button class="btn-small" id="saveBackupBtn" style="width:100%; border: 1px solid #f59e0b; color:#f59e0b; margin-bottom:0.5rem; font-weight:700;" onclick="exportDB()" title="Pobierz plik backup z aktualnym stanem całej bazy">💾 Zapisz backup teraz</button>
+                <div id="backupStatusBar" style="font-size:0.7rem; text-align:center; padding:0.3rem; border-radius:4px; margin-bottom:0.5rem; display:none;"></div>
+                <!-- Ścieżka folderu ArchiveBackups -->
+                <div style="background:rgba(15,23,42,0.6); border:1px dashed rgba(255,255,255,0.12); border-radius:6px; padding:0.5rem 0.6rem; margin-bottom:0.5rem;">
+                    <div style="font-size:0.65rem; color:var(--text-muted); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.04em;">📁 Folder zapisu backupów</div>
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <code style="font-size:0.6rem; color:#94a3b8; word-break:break-all; flex:1; line-height:1.4;">Invoicing\ArchiveBackups\</code>
+                        <button onclick="copyBackupPath()" style="flex-shrink:0; padding:2px 6px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:4px; color:var(--text-muted); cursor:pointer; font-size:0.65rem;" title="Kopiuj pełną ścieżkę">📋</button>
+                    </div>
+                </div>
+                <button class="btn-small" style="width:100%; border: 1px solid var(--accent); color:var(--accent);"
+                    onclick="seedFromCSV()">Zasil Bazę z Pliku (Historyczne Faktury)</button>
+            </div>
+
+            <div class="db-management">
+                <label style="display:block; margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-muted);">Tryb Pracy (Fakturowanie)</label>
+                <select id="invoicingMode" style="border-color: #10b981;">
+                    <option value="cumulative">AUTOMAT (Cały miesiąc od 1-go)</option>
+                    <option value="range">KONTROLA (Wybrany zakres np. Pt-Nd)</option>
+                </select>
+                <p style="font-size:0.7rem; color:var(--text-muted); margin-top:-0.5rem; line-height:1.2;">
+                    *Automat: Delta = Raport - Baza.<br>
+                    *Kontrola: Delta = To co w pliku (1:1).
+                </p>
+            </div>
+
+            <button class="generate-btn" onclick="window.open('history.html', '_blank')"
+                style="background: linear-gradient(45deg, #10b981, #3b82f6); margin-top: 2rem;">📂 Otwórz Archiwum Faktur</button>
+
+            <!-- Panel Sald -->
+            <div class="balance-panel">
+                <h3>Oczekujące Salda (Rabaty)</h3>
+                <div id="sidebarBalances">
+                    <div class="balance-empty">Brak oczekujących rabatów.</div>
+                </div>
+            </div>
+
+            <h2>Pliki Wejściowe</h2>
+
+            <div class="file-input-group">
+                <label>1a. Oferty AdRice (Aktywne)</label>
+                <input type="file" id="fileAdRiceActive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>1b. Oferty AdRice (Nieaktywne)</label>
+                <input type="file" id="fileAdRiceInactive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2a. Amsped Lists: Uncapped (SKU -> ID Ofert)</label>
+                <input type="file" id="fileListsUncapped" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2b. Amsped Lists: Find (SKU -> ID Ofert)</label>
+                <input type="file" id="fileListsFind" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2c. Amsped Lists: Alcance (SKU -> ID Ofert)</label>
+                <input type="file" id="fileListsAlcance" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>3. Amsped Perf: Uncapped (PL, HU)</label>
+                <input type="file" id="fileUncapped" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>4. Amsped Perf: Find (DE, LT, CZ, SK, LV)</label>
+                <input type="file" id="fileFind" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>5. Amsped Perf: Alcance (PT, ES)</label>
+                <input type="file" id="fileAlcance" accept=".csv">
+            </div>
+
+            <button class="generate-btn" id="generateBtn">Generuj Faktury</button>
+
+            <div class="file-input-group" style="border-top: 1px solid var(--glass-border); padding-top: 1.5rem; display: flex; gap: 10px; margin-top: 1rem;">
+                <button onclick="seedFromCSV()" class="generate-btn" style="background: #475569; margin-top: 0; font-size: 0.8rem; padding: 0.5rem;" title="Zasilanie bazy plikiem CSV (ID;Count)">Zasil Bazę (CSV)</button>
+                <button onclick="repairDBFromManualCounts()" class="generate-btn" style="background: #92400e; margin-top: 0; font-size: 0.8rem; padding: 0.5rem;" title="Użyj do naprawy błędnych stanów na podstawie Twoich ręcznych wyliczeń (Wklej tekst)">Korekta Stanu (Manual)</button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="results-container" id="resultsArea">
+            <div class="summary-panel" id="summaryArea" style="display: none;">
+                <!-- Summary Table will be rendered here -->
+            </div>
+            
+            <div class="panel" style="text-align: center; color: var(--text-muted);" id="placeholder">
+                <p>Wczytaj pliki i kliknij "Generuj Faktury", aby zobaczyć wyniki.</p>
+            </div>
+
+            <!-- Cards will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <!-- Scraper Modal Popup -->
+    <div class="codeboxes-modal" id="scraperModal">
+        <div class="modal-inner">
+            <span class="close-modal" id="closeScraperBtn">&times;</span>
+            <h2 style="border-bottom:none; margin-bottom: 0.5rem;">Skrypt Scrapera Ofert (Wklej do konsoli)</h2>
+            <p style="margin-bottom: 1rem;">Otwórz stronę AdRice z wylistowanymi ofertami, wciśnij klawisz F12, przejdź
+                do zakładki "Console" (Konsola), wklej poniższy kod i wciśnij Enter.</p>
+            <pre class="code-box" id="scraperCodeBox">
+/**
+ * AdRice Offers Scraper dla systemu Invoicing
+ * Wklej ten kod do konsoli przeglądarki na stronie z listą ofert AdRice (np. /en/offers)
+ * Pobierze wszystkie dostępne oferty i wygeneruje pobranie pliku CSV.
+ */
+
+(async () => {
+    console.log("🚀 Start Scrapera Ofert AdRice (Invoicing)...");
+    
+    let table = document.querySelector('#table_offers') || document.querySelector('#offersTable') || document.querySelector('table.table');
+    if (!table) {
+        console.error("❌ Nie znaleziono tabeli ofert!");
+        return;
+    }
+
+    const targetAdvertisers = ["TrendiSupply", "EuroFlex", "SmartMediaSolving"];
+
+    let rows = table.querySelectorAll('tbody tr');
+    let offersToScan = [];
+
+    rows.forEach(row => {
+        let advCell = row.querySelector('td:nth-child(3)') || row.querySelector('td:nth-child(5)');
+        let advName = advCell?.innerText.trim() || "";
+        let offerId = row.querySelector('td:nth-child(1)')?.innerText.trim();
+        let offerName = row.querySelector('td:nth-child(2)')?.innerText.trim();
+        
+        if (offerId && !isNaN(offerId) && targetAdvertisers.some(t => advName.includes(t))) {
+            offersToScan.push({ id: offerId, name: offerName, targetUrl: `/en/offers/${offerId}/edit` });
+        }
+    });
+
+    if (offersToScan.length === 0) {
+        console.error("❌ Nie znaleziono żadnych ofert w tabeli.");
+        return;
+    }
+
+    console.log(`🔍 Znaleziono ${offersToScan.length} ofert. Rozpoczynam pobieranie i sumowanie stawek (Payout, Adv Fee, Native Fee)...`);
+
+    let csvContent = "Offer_ID;Offer_Name;Payout\n";
+    let processed = 0;
+
+    async function fetchOfferPayout(offer, retries = 3) {
+        try {
+            let response = await fetch(offer.targetUrl);
+            if(!response.ok) throw new Error("HTTP " + response.status);
+            
+            let html = await response.text();
+
+            let parseStr = (str) => {
+                if(!str) return 0;
+                let val = parseFloat(str.replace(',', '.').replace(/[^\d\.\-]/g, ''));
+                return isNaN(val) ? 0 : val;
+            };
+
+            let baseStr = (html.match(/id="offer_payout"[^>]*value="([^"]*)"/) || [null, "0"])[1];
+            let basePayout = parseStr(baseStr);
+            
+            if(basePayout === 0) {
+                let cpaStr = (html.match(/id="offer_cpa"[^>]*value="([^"]*)"/) || [null, "0"])[1];
+                basePayout = parseStr(cpaStr);
+            }
+
+            let advStr = (html.match(/id="offer_advertiserFee"[^>]*value="([^"]*)"/) || [null, "0"])[1];
+            let advFee = parseStr(advStr);
+
+            let nativeStr = (html.match(/id="offer_nativeAdvFee"[^>]*value="([^"]*)"/) || [null, "0"])[1];
+            let nativeFee = parseStr(nativeStr);
+
+            let totalPayout = (basePayout + advFee + nativeFee).toFixed(2);
+
+            let safeName = (offer.name || "Brak Nazwy").replace(/;/g, ',').replace(/[\r\n]+/g, ' ').trim();
+            
+            processed++;
+            if(processed % 50 === 0 || processed === offersToScan.length) {
+                console.log(`Pobrano i przetworzono już: ${processed} z ${offersToScan.length} ofert...`);
+            }
+
+            return `${offer.id};${safeName};${totalPayout}\n`;
+        } catch (e) {
+            if (retries > 0) {
+                console.warn(`⏳ Serwer odrzuca (Błąd 504). Ponawiam oferte ${offer.id} za ułamek sekundy...`);
+                await new Promise(r => setTimeout(r, 1500));
+                return fetchOfferPayout(offer, retries - 1);
+            }
+            console.error(`❌ Całkowity Błąd przy ofercie ${offer.id} (Pomięto):`, e);
+            return `${offer.id};${offer.name};0.00\n`;
+        }
+    }
+
+    const CHUNK_SIZE = 50; // Agresywniejszy balans; jeśli wpadnie 504, moduł Retry to zreanimuje
+    let resultsAll = [];
+    
+    for (let i = 0; i < offersToScan.length; i += CHUNK_SIZE) {
+        let chunk = offersToScan.slice(i, i + CHUNK_SIZE);
+        let results = await Promise.all(chunk.map(offer => fetchOfferPayout(offer)));
+        resultsAll.push(...results);
+    }
+    
+    csvContent += resultsAll.join("");
+
+    console.log("✅ GOTOWE! Generowanie pliku CSV...");
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "adrice_offers_prices.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+})();</pre>
+            <button class="generate-btn" id="copyScraperBtn">Skopiuj do Schowka</button>
+        </div>
+    </div>
+
+    <!-- Options Modal Popup -->
+    <div class="codeboxes-modal" id="missingItemsModal">
+        <div class="modal-inner" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+            <span class="close-modal" id="closeMissingBtn" onclick="document.getElementById('missingItemsModal').style.display='none'">&times;</span>
+            <h2 style="border-bottom:none; margin-bottom: 0.5rem;" id="missingModalTitle">Wybierz brakujące oferty do skorygowania</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.9rem;">
+                Zaznacz pozycje (np. 3456), które faktycznie zniknęły i chcesz dopisać je na minus u dołu faktury.
+            </p>
+            <input type="text" id="missingSearchInput" placeholder="Filtruj wg ID lub nazwy (np. 3456)..." 
+                style="width: 100%; padding: 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--accent); border-radius: 8px; color: white; margin-bottom: 1rem; outline: none;">
+            
+            <div style="overflow-y: auto; flex-grow: 1; border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 1rem; max-height: 350px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="missingItemsTable">
+                    <thead style="position: sticky; top: 0; background: var(--glass-bg); backdrop-filter: blur(5px);">
+                        <tr>
+                            <th style="padding: 0.75rem; text-align: center; width: 40px; border-bottom: 1px solid var(--glass-border);">
+                                <input type="checkbox" id="selectAllMissing" onchange="window.toggleAllMissing(this)">
+                            </th>
+                            <th style="padding: 0.75rem; border-bottom: 1px solid var(--glass-border);">ID</th>
+                            <th style="padding: 0.75rem; border-bottom: 1px solid var(--glass-border);">Nazwa Produktu</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 1px solid var(--glass-border);">Źródło</th>
+                            <th style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--glass-border);">Zafakturowano</th>
+                        </tr>
+                    </thead>
+                    <tbody id="missingItemsTbody">
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--glass-border);">
+                <button class="generate-btn" style="width: auto; margin-top: 0; background: #475569; box-shadow: none;" onclick="document.getElementById('missingItemsModal').style.display='none'">Anuluj</button>
+                <button class="generate-btn" style="width: auto; margin-top: 0; background: var(--success);" onclick="window.addSelectedMissingItems()">+ Dodaj Zaznaczone</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">Skopiowano do schowka!</div>
+
+    <script>
+        // Globalny stan bazy zafakturowanych lidów (LocalStorage)
+        let invoicingDB = JSON.parse(localStorage.getItem('adrice_invoicing_db_v2')) || {};
+
+        function saveInvoicingDB() {
+            localStorage.setItem('adrice_invoicing_db_v2', JSON.stringify(invoicingDB));
+        }
+
+        // Podświetl przycisk backup gdy baza ma dane — sygnał że warto zapisać
+        function flashBackupBtn() {
+            const btn = document.getElementById('saveBackupBtn');
+            if (!btn) return;
+            btn.style.background = 'rgba(245,158,11,0.25)';
+            btn.style.boxShadow = '0 0 10px rgba(245,158,11,0.4)';
+            setTimeout(() => {
+                btn.style.background = '';
+                btn.style.boxShadow = '';
+            }, 2000);
+        }
+
+        // Globalny stan oczekujących rabatów/sald (Carry-over)
+        let pendingAdjustments = JSON.parse(localStorage.getItem('adrice_pending_adjustments')) || [];
+
+        function saveAdjustments() {
+            localStorage.setItem('adrice_pending_adjustments', JSON.stringify(pendingAdjustments));
+            renderSidebarBalances();
+        }
+
+        /**
+         * Pobiera szczegółowe informacje o korektach dla danej oferty w danym miesiącu.
+         */
+        function getAdjustmentsInfo(month, account, offerId) {
+            let pending = 0;
+            let used = 0;
+            let usedBy = [];
+
+            pendingAdjustments.forEach(adj => {
+                if (adj.month === month && adj.account === account && adj.items) {
+                    const item = adj.items.find(it => it.id === offerId);
+                    if (item) {
+                        if (adj.status === 'pending') {
+                            pending += item.delta;
+                        } else {
+                            used += item.delta;
+                            if (adj.usedByInvoice) usedBy.push(adj.usedByInvoice);
+                        }
+                    }
+                }
+            });
+            return { pending, used, total: pending + used, usedBy };
+        }
+
+        function renderSidebarBalances() {
+            const container = document.getElementById('sidebarBalances');
+            const active = pendingAdjustments.filter(a => a.status === 'pending');
+            
+            if (active.length === 0) {
+                container.innerHTML = '<div class="balance-empty">Brak oczekujących rabatów.</div>';
+                return;
+            }
+
+            let html = '<table class="balance-table"><tbody>';
+            // Agregacja po koncie
+            const accounts = { pl:0, hu:0, find:0, alcance:0 };
+            active.forEach(a => accounts[a.account] += a.amount);
+
+            Object.keys(accounts).forEach(acc => {
+                if (accounts[acc] !== 0) {
+                    const isPositive = accounts[acc] > 0;
+                    const color = isPositive ? '#fbbf24' : 'var(--success)';
+                    html += `<tr><td class="acc">${acc.toUpperCase()}</td><td class="amt" style="color:${color}">${accounts[acc].toFixed(2)} €</td></tr>`;
+                }
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Inicjalizacja dropdowna miesięcy (Od Grudnia 2026 wstecz do Marca 2026)
+        function initMonthSelector() {
+            const select = document.getElementById('activeMonth');
+            const now = new Date();
+            // FIX: Używamy lokalnego roku/miesiąca zamiast toISOString() (który konwertuje do UTC
+            // i w strefie UTC+2 daje klucz o miesiąc za mały, np. kwiecień → '2026-03')
+            const currentVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            // Stały zakres: od Grudnia 2026 wstecz do Marca 2026 (początek projektu)
+            const endYear = 2026;
+            const endMonth = 11; // Grudzień
+            const startYear = 2026;
+            const startMonth = 2; // Marzec
+
+            for (let year = endYear; year >= startYear; year--) {
+                let mEnd = (year === endYear) ? endMonth : 11;
+                let mStart = (year === startYear) ? startMonth : 0;
+                for (let m = mEnd; m >= mStart; m--) {
+                    // FIX: Budujemy klucz YYYY-MM bezpośrednio z liczb — bez konwersji przez UTC
+                    let val = `${year}-${String(m + 1).padStart(2, '0')}`;
+                    // Dzień 15 zapewnia poprawną etykietę niezależnie od strefy czasowej
+                    let label = new Date(year, m, 15).toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
+                    let opt = document.createElement('option');
+                    opt.value = val;
+                    opt.innerText = label;
+                    if(val === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                }
+            }
+
+            renderSidebarBalances(); // Odśwież widok sald na starcie
+        }
+
+        // Listener zmiany miesiąca (Będzie przypisany na końcu skryptu)
+
+        // Funkcje Eksport/Import
+        window.exportDB = function () {
+            const now = new Date();
+            const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+            const filename = `adrice_backup_${stamp}.json`;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invoicingDB, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", filename);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            // Przypomnienie o folderze
+            let notif = document.getElementById('notification');
+            notif.innerText = `💾 Pobrano: ${filename} → zapisz w folderze ArchiveBackups\\`;
+            notif.classList.add('show');
+            setTimeout(() => notif.classList.remove('show'), 5000);
+        }
+
+        window.copyBackupPath = function() {
+            const path = 'C:\\Users\\produ\\Desktop\\Antigravity\\AdRice\\Invoicing\\ArchiveBackups\\';
+            navigator.clipboard.writeText(path).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = '📋 Ścieżka skopiowana! Wklej w oknie zapisu Brave.';
+                notif.classList.add('show');
+                setTimeout(() => notif.classList.remove('show'), 3500);
+            });
+        }
+
+        window.importDB = function () {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        invoicingDB = imported;
+                        saveInvoicingDB();
+                        alert("Baza zaimportowana pomyślnie!");
+                    } catch (err) { alert("Błąd importu pliku!"); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // Funkcja do "zasiedlania" bazy danymi z Excela (CSV: ID;Count)
+        window.seedFromCSV = function () {
+            const currentMonth = document.getElementById('activeMonth').value;
+            
+            // FIX: Pytamy użytkownika do którego konta przypisać te dane, 
+            // aby uniknąć zanieczyszczenia wszystkich 4 kont tym samym ID.
+            const targetAccount = prompt("Do którego konta przypisać dane? (wpisz: pl, hu, find lub alcance)", "pl");
+            if (!targetAccount || !['pl', 'hu', 'find', 'alcance'].includes(targetAccount.toLowerCase())) {
+                alert("Nieprawidłowy klucz konta. Przerwano.");
+                return;
+            }
+
+            const accountKey = targetAccount.toLowerCase();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv';
+
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    const text = event.target.result;
+                    const lines = text.split(/\r?\n/);
+                    let countAdded = 0;
+                    
+                    // Używamy tymczasowego obiektu, by sumować zduplikowane ID z pliku
+                    let tempSums = {};
+
+                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+
+                    lines.forEach(line => {
+                        let parts = line.split(/[;,]/);
+                        if (parts.length >= 2) {
+                            let offerId = parts[0].trim().replace('#', '');
+                            let count = parseInt(parts[1].trim(), 10);
+
+                            if (offerId && !isNaN(count)) {
+                                tempSums[offerId] = (tempSums[offerId] || 0) + count;
+                            }
+                        }
+                    });
+
+                    // Zapisujemy zsumowane wartości do bazy
+                    for (let id in tempSums) {
+                        invoicingDB[currentMonth][accountKey][id] = tempSums[id];
+                        countAdded++;
+                    }
+
+                    saveInvoicingDB();
+                    alert(`Zasilono konto [${accountKey.toUpperCase()}]! Przetworzono ${countAdded} unikalnych ofert (zduplikowane zostały zsumowane) dla miesiąca: ${currentMonth}.`);
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        /**
+         * FUNKCJA NAPRAWCZA: Pozwala wkleić tekst w formacie "ID;Count" lub skopiowany z Excela
+         * i bezpośrednio nadpisać wartości alreadyPaid w bazie. 
+         * Idealne do naprawy po Twoich ręcznych obliczeniach.
+         */
+        window.repairDBFromManualCounts = function() {
+            const currentMonth = document.getElementById('activeMonth').value;
+            const targetAccount = prompt("Wybierz konto do NAPRAWY (pl, hu, find, alcance):", "pl");
+            if(!targetAccount) return;
+
+            const data = prompt("Wklej dane w formacie ID;LICZBA (jedna oferta na linię):");
+            if(!data) return;
+
+            const lines = data.split('\n');
+            let repaired = 0;
+            let tempSums = {};
+            
+            if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+            
+            lines.forEach(line => {
+                let parts = line.split(/[;\t,]/); // Obsługa średnika, tabulatora (Excel) i przecinka
+                if(parts.length >= 2) {
+                    let id = parts[0].trim().replace('#', '');
+                    let val = parseInt(parts[1].trim(), 10);
+                    if(id && !isNaN(val)) {
+                        tempSums[id] = (tempSums[id] || 0) + val;
+                    }
+                }
+            });
+
+            for (let id in tempSums) {
+                invoicingDB[currentMonth][targetAccount][id] = tempSums[id];
+                repaired++;
+            }
+
+            saveInvoicingDB();
+            alert(`Naprawiono ${repaired} unikalnych rekordów (duplikaty zsumowano) dla konta ${targetAccount} w miesiącu ${currentMonth}.`);
+            // Jeśli są wyniki na ekranie, odświeżamy widok (opcjonalnie przeladuj stronę)
+            location.reload(); 
+        }
+
+        // Sidebar log functions are now obsolete (Moved to history.html)
+
+        // Globalny stan mapowań
+        let mappings = {
+            nameToOfferId: {},
+            offerIdToData: {}
+        };
+
+        // Utility to map Amsped string back to country code
+        function getCountryCode(productName, sourceAccount, offerId = null) {
+            let nameUpper = productName.toUpperCase();
+            if (nameUpper.includes("HUNGARY")) return "HU";
+            if (nameUpper.includes("GERMANY")) return "DE";
+            if (nameUpper.includes("LITHUANIA") || nameUpper.includes("LITUANIA")) return "LT";
+            if (nameUpper.includes("CZECH")) return "CZ";
+            if (nameUpper.includes("SLOVAKIA")) return "SK";
+            if (nameUpper.includes("LATVIA")) return "LV";
+            if (nameUpper.includes("PORTUGAL")) return "PT";
+            if (nameUpper.includes("SPAIN")) return "ES";
+            if (nameUpper.includes("FINLAND")) return "FI";
+
+            // Dodatkowe sprawdzenie w AdRice name jeśli ID jest dostępne
+            if (offerId && mappings.offerIdToData[offerId]) {
+                let adRiceName = mappings.offerIdToData[offerId].name.toUpperCase();
+                if (adRiceName.includes("HUNGARY")) return "HU";
+                if (adRiceName.includes("LITHUANIA")) return "LT";
+                if (adRiceName.includes("POLAND")) return "PL";
+            }
+
+            if (sourceAccount === "Uncapped") return "PL";
+            return "PL";
+        }
+
+        // Tłumaczenie do pełnej nazwy wyświetlanej w nazwie pozycji na fakturze
+        function getFullCountryName(code) {
+            const map = {
+                "PL": "Poland", "HU": "Hungary", "DE": "Germany",
+                "LT": "Lithuania", "CZ": "Czechia", "SK": "Slovakia",
+                "LV": "Latvia", "PT": "Portugal", "ES": "Spain"
+            };
+            return map[code] || code;
+        }
+
+        // Pomocnicze funkcje tekstowe
+        function extractSKU(str) {
+            if (!str) return "UNKNOWN_SKU";
+
+            // 1. Obsługa formatu EKA/EKM (priorytet) - np. EKAM 033 -> EKM033
+            let ekaMatch = str.match(/(EK[AM]\s*\d+)/i);
+            if (ekaMatch) return ekaMatch[1].replace(/\s+/g, '').toUpperCase();
+            
+            // 2. Obsługa SKU z cyframi oraz literami (np. SKU182, SKUAD4407, SKUCR7021)
+            let match = str.match(/SKU\s*([a-z0-9]+)/i);
+            if (match) return `SKU${match[1].toUpperCase()}`;
+            
+            return "UNKNOWN_SKU";
+        }
+
+        // Normalizacja nazwy z Amspedu by powiązać Lists z Performances wykluczając drobne wariancje np "BLOCKED", "ON HOLD"
+        function normalizeAmspedName(name) {
+            if (!name) return "";
+            // Usuwa prefixy statusu, które mogą pojawiać się w Lists, ale nie w Performance
+            return name.toLowerCase()
+                .replace(/^(blocked|on hold|\?\?)\s+/i, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        // Czyszczenie nazwy oferty z AdRice z niepotrzebnych prefixów (np [P]) i sufiksów (Cena | Kraj)
+        function cleanupAdRiceName(name) {
+            if (!name) return "Brak Nazwy";
+            // Usuwa m.in. "[P] ", "[LS] " z przodu
+            let cleaned = name.replace(/^\[.*?\]\s*/, '');
+            // Usuwa cenę z walutą (np " 69€ | LATVIA" lub " 2 999 CZK | CZECH REPUBLIC")
+            // Ulepszony regex wyłapujący spacje jako separatory tysięcy (np. "34 999 HUF")
+            cleaned = cleaned.replace(/\s+\d+(?:[\s\.,]\d{3})*(?:[,\.]\d{1,2})?\s*(?:€|CZK|PLN|HUF|RON|LEI|BGN|EUR).*$/i, '');
+            // Opcjonalnie na wypadek gdyby nie było cyfr, a samo " | SPAIN"
+            cleaned = cleaned.replace(/\s*\|.*$/i, '');
+            return cleaned.trim();
+        }
+
+        // Parse single CSV file using Promise
+        function parseCSVFile(file, options = {}) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    ...options,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => reject(err)
+                });
+            });
+        }
+
+        // Logic triggering when Generate is clicked
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.innerText = "Przetwarzanie...";
+
+            try {
+                // 1. Load Data mapping
+                const fileAdRiceActive = document.getElementById('fileAdRiceActive').files[0];
+                const fileAdRiceInactive = document.getElementById('fileAdRiceInactive').files[0];
+                const fileListsUncapped = document.getElementById('fileListsUncapped').files[0];
+                const fileListsFind = document.getElementById('fileListsFind').files[0];
+                const fileListsAlcance = document.getElementById('fileListsAlcance').files[0];
+
+                const fileUncapped = document.getElementById('fileUncapped').files[0];
+                const fileFind = document.getElementById('fileFind').files[0];
+                const fileAlcance = document.getElementById('fileAlcance').files[0];
+
+                if (!fileAdRiceActive && !fileAdRiceInactive) {
+                    alert("Musisz wgrać przynajmniej jeden plik ofert AdRice (Aktywne lub Nieaktywne)!");
+                    throw new Error("Missing AdRice file");
+                }
+
+                if (!fileListsUncapped && !fileListsFind && !fileListsAlcance) {
+                    alert("Musisz wgrać przynajmniej jedną listę ofert (zakładka Lists) z amsped!");
+                    throw new Error("Missing Amsped Lists files");
+                }
+
+                mappings.offerIdToData = {};
+
+                const processAdRice = async (advFile) => {
+                    if (!advFile) return;
+                    let adRiceData = await parseCSVFile(advFile, { delimiter: ";" });
+                    adRiceData.forEach(row => {
+                        let id = row["Offer_ID"]?.trim();
+                        if (id) {
+                            mappings.offerIdToData[id] = {
+                                name: row["Offer_Name"]?.trim() || "Brak Nazwy",
+                                payout: parseFloat(row["Payout"] || "0").toFixed(2)
+                            };
+                        }
+                    });
+                };
+
+                await processAdRice(fileAdRiceActive);
+                await processAdRice(fileAdRiceInactive);
+
+                mappings.nameToOfferId = {};
+
+                // Process Function logic for Amsped Lists Maps
+                const processList = async (listFile) => {
+                    if (!listFile) return;
+                    let listsData = await parseCSVFile(listFile);
+                    listsData.forEach(row => {
+                        let nameCol = row["name"] || row["Name"] || row["Prodotto"] || Object.values(row)[2] || "";
+                        let ucpCol = row["SKU"] || row["sku"] || Object.values(row)[1] || "";
+
+                        let offerIdMatch = ucpCol.match(/UCP(\d+)/i);
+                        let offerId = offerIdMatch ? offerIdMatch[1] : "";
+
+                        if (nameCol && offerId !== "") {
+                            let normalized = normalizeAmspedName(nameCol);
+                            mappings.nameToOfferId[normalized] = offerId;
+                        }
+                    });
+                };
+
+                await processList(fileListsUncapped);
+                await processList(fileListsFind);
+                await processList(fileListsAlcance);
+
+                // Arrays for holding processed invoices
+                let invoicePL = []; // Uncapped PL
+                let invoiceHU = []; // Uncapped HU
+                let invoiceFind = []; // Find All
+                let invoiceAlcance = []; // Alcance All
+
+                // Process Function logic for Performance files
+                const processAccount = async (file, accountName) => {
+                    if (!file) return [];
+                    let data = await parseCSVFile(file, { delimiter: ";" });
+                    let currentMonth = document.getElementById('activeMonth').value;
+                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+
+                    // KROK 1: Agregacja po (offerId + invoiceType)
+                    // FIX: Gdy ta sama oferta pojawia się w wielu wierszach Amsped (np. kampania główna
+                    // + kampania testowa/zablokowana), sumujemy ich positivi PRZED obliczeniem delty.
+                    // Bez tego każde zatwierdzenie nadpisywało DB wartością OSTATNIEGO wiersza
+                    // ("last write wins"), co przy kolejnych uruchomieniach powodowało ponowne
+                    // naliczanie tej samej różnicy (re-fakturowanie leadów już opłaconych).
+                    let aggregated = {};
+
+                    data.forEach(row => {
+                        let rawName = row["Prodotto"] || row["Nazwa"] || Object.values(row)[0] || "";
+                        let positiviRaw = row["Positivi"] || Object.values(row)[7] || "0";
+                        let positivi = parseInt(positiviRaw, 10);
+
+                        if (positivi > 0) {
+                            let sku = extractSKU(rawName);
+                            let normalized = normalizeAmspedName(rawName);
+
+                            let offerId = mappings.nameToOfferId[normalized] || "NO_ID";
+                            let country = getCountryCode(rawName, accountName, offerId);
+                            let adRiceInfo = mappings.offerIdToData[offerId] || { name: rawName, payout: "0.00" };
+
+                            // Wyczyszczenie nazwy pochodzącej z platformy AdRice
+                            let offerNameCleaned = offerId === "NO_ID" ? rawName : cleanupAdRiceName(adRiceInfo.name);
+
+                            // Opcjonalne dodanie # przed numerem oferty
+                            let formattedOfferId = offerId === "NO_ID" ? "NO_ID" : `#${offerId}`;
+                            let fullCountry = getFullCountryName(country);
+
+                            // Każda faktura (PL, HU, FIND, ALCANCE) ma swoją szufladę
+                            let invoiceType = country === "PL" ? "pl" :
+                                country === "HU" ? "hu" :
+                                    accountName === "Find" ? "find" : "alcance";
+
+                            let key = `${offerId}_${invoiceType}`;
+                            if (!aggregated[key]) {
+                                aggregated[key] = {
+                                    id: offerId,
+                                    title: `Lead Generation ${offerNameCleaned} ${fullCountry} ${sku} ${formattedOfferId}`,
+                                    positivi: 0,
+                                    price: parseFloat(adRiceInfo.payout),
+                                    country: country,
+                                    type: invoiceType
+                                };
+                            }
+                            // Sumujemy leady ze WSZYSTKICH wierszy tego samego offerID
+                            aggregated[key].positivi += positivi;
+                        }
+                    });
+
+
+                    // KROK 1.5: Dodaj oferty, które są w bazie (alreadyPaid > 0), ale całkowicie zniknęły z pliku Amsped (spadki do 0)
+                    let dbAccount = invoicingDB[currentMonth][accountName === "Find" ? "find" : accountName === "Alcance" ? "alcance" : "pl"]; // Tymczasowo, dla PL/HU sprawdzimy niżej
+                    
+                    // Dla Uncapped musimy sprawdzić zarówno PL jak i HU
+                    let accountsToCheck = accountName === "Uncapped" ? ["pl", "hu"] : [accountName === "Find" ? "find" : "alcance"];
+                    
+                    accountsToCheck.forEach(accKey => {
+                        let dbItems = invoicingDB[currentMonth][accKey] || {};
+                        Object.keys(dbItems).forEach(offerId => {
+                            let key = `${offerId}_${accKey}`;
+                            if (!aggregated[key] && dbItems[offerId] > 0) {
+                                // Oferta jest w bazie, ale nie było jej w pliku Amsped
+                                let adRiceInfo = mappings.offerIdToData[offerId] || { name: "Brak w mapowaniu (usunięto z Amsped)", payout: "0.00" };
+                                let offerNameCleaned = offerId === "NO_ID" ? "Nieznana Oferta" : cleanupAdRiceName(adRiceInfo.name);
+                                let formattedOfferId = offerId === "NO_ID" ? "NO_ID" : `#${offerId}`;
+                                let country = accKey === "pl" ? "PL" : accKey === "hu" ? "HU" : accountName === "Find" ? "Find" : "Alcance"; // Uproszczenie kraju
+                                
+                                aggregated[key] = {
+                                    id: offerId,
+                                    title: `Lead Generation ${offerNameCleaned} ${country} ${formattedOfferId} [SPADEK DO 0]`,
+                                    positivi: 0,
+                                    price: parseFloat(adRiceInfo.payout),
+                                    country: country,
+                                    type: accKey
+                                };
+                            }
+                        });
+                    });
+
+                    // KROK 2: Oblicz delty i zbierz wyniki na podstawie zagregowanych danych
+                    let results = [];
+                    let invoicingMode = document.getElementById('invoicingMode').value;
+
+                    Object.values(aggregated).forEach(item => {
+                        // Dynamiczne obliczanie zafakturowanych leadów
+                        let basePaid = invoicingDB[currentMonth][item.type][item.id] || 0;
+                        let adjInfo = getAdjustmentsInfo(currentMonth, item.type, item.id);
+                        let alreadyPaid = basePaid + adjInfo.total;
+                        
+                        let delta = 0;
+                        let nextTotalCount = 0;
+
+                        if (invoicingMode === 'cumulative') {
+                            delta = item.positivi - alreadyPaid;
+                            nextTotalCount = item.positivi;
+                        } else {
+                            // Tryb Wybrany Zakres (Ręczny)
+                            delta = item.positivi; // Fakturujemy 1:1 to co w pliku
+                            nextTotalCount = alreadyPaid + item.positivi; // Kumulujemy w bazie
+                        }
+
+                        results.push({
+                            id: item.id,
+                            title: item.title,
+                            currentCount: nextTotalCount,
+                            previousCount: alreadyPaid,
+                            basePaid: basePaid,
+                            adjInfo: adjInfo,
+                            delta: delta,
+                            price: item.price,
+                            country: item.country,
+                            type: item.type
+                        });
+                    });
+
+                    return results;
+                };
+
+                // Exec processing
+                if (fileUncapped) {
+                    let uncappedData = await processAccount(fileUncapped, "Uncapped");
+                    // Rozdziel na PL i HU
+                    uncappedData.forEach(item => {
+                        if (item.country === "HU") invoiceHU.push(item);
+                        else invoicePL.push(item);
+                    });
+                }
+
+                if (fileFind) {
+                    invoiceFind = await processAccount(fileFind, "Find");
+                }
+                if (fileAlcance) {
+                    invoiceAlcance = await processAccount(fileAlcance, "Alcance");
+                }
+
+                // Sortowanie wszystkich zestawień w zależności od trybu pracy
+                let currentSortMode = document.getElementById('invoicingMode').value;
+                if (currentSortMode === 'range') {
+                    // Tryb KONTROLA: sortujemy malejąco według ilości leadów na fakturę (delta)
+                    invoicePL.sort((a, b) => b.delta - a.delta);
+                    invoiceHU.sort((a, b) => b.delta - a.delta);
+                    invoiceFind.sort((a, b) => b.delta - a.delta);
+                    invoiceAlcance.sort((a, b) => b.delta - a.delta);
+                } else {
+                    // Tryb AUTOMAT: najpierw oferty z delta > 0 (na górę), a wewnątrz grup według ilości leadów (currentCount)
+                    const autoSort = (a, b) => {
+                        const aHasIncrease = a.delta > 0 ? 1 : 0;
+                        const bHasIncrease = b.delta > 0 ? 1 : 0;
+                        if (aHasIncrease !== bHasIncrease) return bHasIncrease - aHasIncrease;
+                        return b.currentCount - a.currentCount;
+                    };
+                    invoicePL.sort(autoSort);
+                    invoiceHU.sort(autoSort);
+                    invoiceFind.sort(autoSort);
+                    invoiceAlcance.sort(autoSort);
+                }
+
+                // Render UI
+                const container = document.getElementById('resultsArea');
+                container.innerHTML = ""; // clear layout
+
+                if ([invoicePL, invoiceHU, invoiceFind, invoiceAlcance].every(arr => arr.length === 0)) {
+                    container.innerHTML = `<div class="panel" style="text-align:center"><p>Brak zamówień z Positivi > 0</p></div>`;
+                    return;
+                }
+
+                // Cache results for confirmation button
+                lastGeneratedResults.pl = invoicePL;
+                lastGeneratedResults.hu = invoiceHU;
+                lastGeneratedResults.find = invoiceFind;
+                lastGeneratedResults.alcance = invoiceAlcance;
+
+                renderInvoicesFromCache();
+
+            } catch (error) {
+                console.error(error);
+                alert("Wystąpił błąd podczas analizy dnaych: " + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Generuj Faktury";
+            }
+        });
+
+        // Funkcja generująca tabelkę podsumowującą na samej górze
+        window.renderSummaryTable = function(invoicePL, invoiceHU, invoiceFind, invoiceAlcance) {
+            const invoicingMode = document.getElementById('invoicingMode').value;
+            const selectedMonth = document.getElementById('activeMonth').value;
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const isPastMonth = (selectedMonth < currentMonthKey);
+
+            const companies = [
+                { name: "TrendiSupply", id: "pl", data: invoicePL },
+                { name: "TradeExpress", id: "hu", data: invoiceHU },
+                { name: "EuroFlex", id: "find", data: invoiceFind },
+                { name: "SmartMedia", id: "alcance", data: invoiceAlcance }
+            ];
+
+            let summaryCSVRows = [];
+            let html = `
+                <div class="summary-panel">
+                    <div class="summary-header">
+                        <h2>Wizualne podsumowanie wygenerowanych faktur</h2>
+                        <button class="btn-copy-summary" onclick="copySummaryToCSV()">
+                            <span>&#128203;</span> Kopiuj CSV
+                        </button>
+                    </div>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Firma</th>
+                                <th>Ilość leadów</th>
+                                <th style="text-align: right;">Wartość faktury</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            companies.forEach(company => {
+                let totalLeads = 0;
+                let totalValue = 0;
+
+                company.data.forEach(item => {
+                    totalLeads += item.delta;
+                    if (invoicingMode === 'cumulative') {
+                        if (item.delta > 0 || isPastMonth) totalValue += item.delta * item.price;
+                    } else {
+                        totalValue += item.delta * item.price;
+                    }
+                });
+
+                // Dodaj korekty/rabaty z salda
+                const appliedAdjustments = pendingAdjustments.filter(a => a.account === company.id && a.status === 'pending' && a.month < selectedMonth);
+                appliedAdjustments.forEach(adj => {
+                    totalValue += adj.amount;
+                });
+
+                const formattedValue = `€${totalValue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                
+                // Przygotuj wiersz do CSV (używamy średnika jako separatora dla polskiego Excela)
+                summaryCSVRows.push(`${company.name};${totalLeads};${formattedValue}`);
+
+                html += `
+                    <tr>
+                        <td class="company-name">${company.name}</td>
+                        <td class="leads-count">${totalLeads}</td>
+                        <td class="invoice-value">${formattedValue}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            window.lastSummaryCSV = summaryCSVRows.join('\n');
+            return html;
+        };
+
+        window.copySummaryToCSV = function() {
+            if (!window.lastSummaryCSV) return;
+            navigator.clipboard.writeText(window.lastSummaryCSV).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Skopiowano podsumowanie do CSV (średnik)!";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3000);
+            });
+        };
+
+        // NOWOŚĆ: Wyodrębniona funkcja renderująca, by móc odświeżać widok po dodaniu braków
+        window.renderInvoicesFromCache = function() {
+            const container = document.getElementById('resultsArea');
+            container.innerHTML = "";
+
+            const invoicePL = lastGeneratedResults.pl || [];
+            const invoiceHU = lastGeneratedResults.hu || [];
+            const invoiceFind = lastGeneratedResults.find || [];
+            const invoiceAlcance = lastGeneratedResults.alcance || [];
+
+            if ([invoicePL, invoiceHU, invoiceFind, invoiceAlcance].every(arr => arr.length === 0)) {
+                container.innerHTML = `<div class="panel" style="text-align:center"><p>Brak zamówień do wyświetlenia</p></div>`;
+                return;
+            }
+
+            // Dodaj tabelkę podsumowującą na górze
+            container.innerHTML = renderSummaryTable(invoicePL, invoiceHU, invoiceFind, invoiceAlcance);
+
+            const invoicingMode = document.getElementById('invoicingMode').value;
+            const selectedMonth = document.getElementById('activeMonth').value;
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const isPastMonth = (selectedMonth < currentMonthKey);
+
+            const createInvoiceView = (title, itemsArr, elementId) => {
+                if (itemsArr.length === 0) return "";
+                let sumPrev = 0, sumCurrent = 0, sumDelta = 0, correctionValue = 0;
+                let positiveValue = 0, negativeValue = 0;
+
+                itemsArr.forEach(item => {
+                    sumPrev += item.previousCount;
+                    sumCurrent += item.currentCount;
+                    sumDelta += item.delta;
+                    let itemVal = item.delta * item.price;
+                    if (invoicingMode === 'cumulative') {
+                        if (item.delta > 0) {
+                            correctionValue += itemVal;
+                            positiveValue += itemVal;
+                        } else if (isPastMonth && item.delta < 0) {
+                            correctionValue += itemVal;
+                            negativeValue += itemVal;
+                        }
+                    } else {
+                        correctionValue += itemVal;
+                        if (item.delta > 0) positiveValue += itemVal;
+                        else negativeValue += itemVal;
+                    }
+                });
+
+                const appliedAdjustments = pendingAdjustments.filter(a => a.account === elementId && a.status === 'pending' && a.month < selectedMonth);
+
+                let finalCorrectionValue = correctionValue;
+                appliedAdjustments.forEach(adj => {
+                    finalCorrectionValue += adj.amount;
+                    if (adj.amount > 0) positiveValue += adj.amount;
+                    else negativeValue += adj.amount;
+                });
+
+                let topBreakdownHtml = '';
+                if (invoicingMode === 'cumulative' && isPastMonth && negativeValue < 0) {
+                    topBreakdownHtml = `
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem; background: rgba(0,0,0,0.15); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
+                                <span style="color: var(--text-muted);">Suma (delta >0):</span>
+                                <span style="color: var(--success); font-weight: 600;">${positiveValue.toFixed(2)} €</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-muted);">Discount (spadki):</span>
+                                <span style="color: #f87171; font-weight: 600;">${negativeValue.toFixed(2)} €</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                let htmlString = `
+                    <div class="invoice-card active" id="inv-${elementId}">
+                        <div class="invoice-header">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <h3 style="margin:0;">${title}</h3>
+                                <button onclick="discoverMissingFromDB('${elementId}')" style="background:transparent; border:1px solid var(--accent); color:var(--accent); font-size:0.7rem; padding:2px 6px; border-radius:4px; cursor:pointer; opacity:0.8; transition:0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">🔍 Weryfikuj braki</button>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="text" id="invoice-num-${elementId}" placeholder="Nr Faktury" 
+                                    style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--accent); background: rgba(0,0,0,0.2); color: white; outline: none; width: 180px;">
+                                <button class="confirm-btn" onclick="confirmInvoice('${elementId}')">Zatwierdź i Zapisz Stan</button>
+                            </div>
+                        </div>
+                        <div class="correction-summary">
+                            <div class="stat-group" style="flex: 1;">
+                                <span class="stat-label">KWOTA DO WYSTAWIENIA NA NOWEJ FAKTURZE</span>
+                                <span class="stat-delta" style="color:#10b981;">${finalCorrectionValue.toFixed(2)} €</span>
+                                ${topBreakdownHtml}
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <button class="copy-btn" style="background:rgba(16, 185, 129, 0.15); border: 1px solid var(--success); color: #34d399; font-weight: bold;" onclick="copyToQuickBooks('${elementId}')">📗 Kopiuj do QuickBooks</button>
+                                <button class="copy-btn" onclick="copyCorrectionLine(${finalCorrectionValue.toFixed(2)})">Kopiuj Jedną Linię (Korekta)</button>
+                                <button class="copy-btn" style="background:rgba(255,255,255,0.05)" onclick="copyTableData('inv-${elementId}')">Kopiuj Tabelę (Excel)</button>
+                                ${(isPastMonth && Math.abs(finalCorrectionValue) > 0.01 && invoicingMode === 'cumulative') ? `
+                                    <button class="copy-btn" style="background:${finalCorrectionValue < 0 ? '#059669' : '#b45309'}; border:1px solid ${finalCorrectionValue < 0 ? '#10b981' : '#f59e0b'};" onclick="transferToBalance('${elementId}', ${finalCorrectionValue}, '${selectedMonth}')">
+                                        ✅ Przenieś ${finalCorrectionValue < 0 ? 'ujemną' : 'dodatnią'} sumę korygującą do salda
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        ${finalCorrectionValue < 0 ? '<div class="negative-warning">⚠️ Suma korekty jest ujemna (-' + Math.abs(finalCorrectionValue).toFixed(2) + '€).</div>' : ''}
+                        <table id="table-${elementId}">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;">LP</th>
+                                    <th>Nazwa Pozycji</th>
+                                    <th>Zafakturowano</th>
+                                    <th>Raport (Suma)</th>
+                                    <th>NOWA FAKTURA</th>
+                                    <th style="text-align: right;">Cena/Szt</th>
+                                    <th style="text-align: right;">Wartość</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                let rowNum = 1;
+                itemsArr.forEach(item => {
+                    let deltaVal = (item.delta * item.price).toFixed(2);
+                    htmlString += `
+                    <tr id="viewrow-${elementId}-${rowNum}">
+                        <td style="color:var(--text-muted); font-size:0.8rem;">${rowNum}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <button class="copy-item-btn" data-title="${item.title.replace(/"/g, '&quot;')}" data-rowid="viewrow-${elementId}-${rowNum}">&#128203;</button>
+                                ${item.id === 'NO_ID' ? '<span class="no-id-warning">&#9888;&#65039; ' + item.title + '</span>' : item.title}
+                            </div>
+                        </td>
+                        <td style="color:var(--text-muted)">
+                            ${item.basePaid}
+                            ${item.adjInfo.total !== 0 ? ` 
+                                <span style="color:#fbbf24; cursor:help; font-weight:bold;" 
+                                    title="Korekty: ${item.adjInfo.pending !== 0 ? 'Oczekujące: ' + (item.adjInfo.pending > 0 ? '+' : '') + item.adjInfo.pending : ''} ${item.adjInfo.used !== 0 ? '\nRozliczone: ' + (item.adjInfo.used > 0 ? '+' : '') + item.adjInfo.used + ' (Faktura: ' + item.adjInfo.usedBy.join(', ') + ')' : ''}">
+                                    ${item.adjInfo.total > 0 ? '+' : ''}${item.adjInfo.total}*
+                                </span>` : ''}
+                        </td>
+                        <td>${item.currentCount}</td>
+                        <td style="font-weight:700; color:${item.delta >= 0 ? 'var(--success)' : '#ef4444'}">
+                            ${item.delta > 0 ? '+' : ''}${item.delta}
+                            ${item.delta < 0 ? ' <small style="display:block; font-size:0.6rem; color:#f87171; font-weight:normal;">⚠️ SPADEK</small>' : ''}
+                        </td>
+                        <td class="price" style="text-align: right;">${item.price.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight:700;">${deltaVal} €</td>
+                    </tr>
+                    `;
+                    rowNum++;
+                });
+
+                appliedAdjustments.forEach(adj => {
+                    const isRabat = adj.amount < 0;
+                    // value has already been pre-calculated in finalCorrectionValue above
+                    htmlString += `
+                    <tr style="background: ${isRabat ? 'rgba(16,185,129,0.1)' : 'rgba(251,191,36,0.1)'};">
+                        <td style="color:var(--text-muted); font-size:0.8rem;">${rowNum++}</td>
+                        <td style="color:${isRabat ? 'var(--success)' : '#fbbf24'}; font-weight:600;">Korekta / ${isRabat ? 'Rabat' : 'Dopłata'} za: ${adj.month}</td>
+                        <td>-</td><td>-</td>
+                        <td style="font-weight:700;">${isRabat ? '-1' : '+1'} Szt</td>
+                        <td style="text-align:right;">${Math.abs(adj.amount).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:700;">${adj.amount.toFixed(2)} €</td>
+                    </tr>
+                    `;
+                });
+
+                let breakdownHtml = '';
+                if (invoicingMode === 'cumulative' && isPastMonth && negativeValue < 0) {
+                    breakdownHtml = `
+                    <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
+                        <td colspan="6" style="text-align: right; color: var(--success);">Suma delta >0:</td>
+                        <td style="text-align: right; color: var(--success);">${positiveValue.toFixed(2)} €</td>
+                    </tr>
+                    <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
+                        <td colspan="6" style="text-align: right; color: #f87171;">Discount:</td>
+                        <td style="text-align: right; color: #f87171;">${negativeValue.toFixed(2)} €</td>
+                    </tr>
+                    `;
+                }
+
+                htmlString += `
+                    ${breakdownHtml}
+                    <tr style="background: rgba(255,255,255,0.05); font-weight: 800;">
+                        <td colspan="2" style="color:var(--accent)">SUMA (TOTAL):</td>
+                        <td>${sumPrev}</td><td>${sumCurrent}</td>
+                        <td style="color:${sumDelta >= 0 ? 'var(--success)' : '#f87171'}">${sumDelta > 0 ? '+' : ''}${sumDelta}</td>
+                        <td>-</td><td style="text-align: right; color:#fbbf24;">${finalCorrectionValue.toFixed(2)} €</td>
+                    </tr></tbody></table></div>
+                `;
+                return htmlString;
+            };
+
+            container.innerHTML += createInvoiceView("TrendiSupply (Uncapped)", invoicePL, "pl");
+            container.innerHTML += createInvoiceView("TradeExpress (Uncapped)", invoiceHU, "hu");
+            container.innerHTML += createInvoiceView("EuroFlex (Find)", invoiceFind, "find");
+            container.innerHTML += createInvoiceView("SmartMediaSolving(Alcance)", invoiceAlcance, "alcance");
+        };
+
+        // Function allowing copying a single summary line
+        window.copyCorrectionLine = function (value) {
+            let text = `Lead Generation Correction\t1\t${value}`;
+            navigator.clipboard.writeText(text).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Skopiowano linię zbiorczą: " + value + " €";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3000);
+            });
+        };
+
+        window.copyToClipboard = function(btn) {
+            const text = btn.getAttribute('data-title') || '';
+            const rowId = btn.getAttribute('data-rowid') || '';
+
+            // Zdąjmujemy podświetlenie ze wszystkich poprzednich wierszy
+            document.querySelectorAll('.active-copied-row').forEach(r => r.classList.remove('active-copied-row'));
+
+            // Podświetlamy bieżący wiersz
+            if (rowId) {
+                const row = document.getElementById(rowId);
+                if (row) row.classList.add('active-copied-row');
+            }
+
+            // Kopiowanie do schowka
+            navigator.clipboard.writeText(text).then(() => {
+                const notif = document.getElementById('notification');
+                if (notif) {
+                    notif.innerText = 'Skopiowano do schowka!';
+                    notif.classList.add('show');
+                    setTimeout(() => notif.classList.remove('show'), 2000);
+                }
+            }).catch(err => console.error('Błąd kopiowania:', err));
+        };
+
+        // Event delegation - łapie kliknięcia na przyciski kopowania bez względu kiedy są renderowane
+        document.getElementById('resultsArea').addEventListener('click', function(e) {
+            const btn = e.target.closest('.copy-item-btn');
+            if (!btn) return;
+
+            const text = btn.getAttribute('data-title') || '';
+            const rowId = btn.getAttribute('data-rowid') || '';
+
+            // Zdąjmujemy podświetlenie ze wszystkich poprzednich wierszy
+            document.querySelectorAll('.active-copied-row').forEach(r => r.classList.remove('active-copied-row'));
+
+            // Podświetlamy bieżący wiersz (mocny kolor przez inline style - niezawodnie)
+            if (rowId) {
+                const row = document.getElementById(rowId);
+                if (row) {
+                    row.classList.add('active-copied-row');
+                }
+            }
+
+            // Kopiowanie do schowka
+            navigator.clipboard.writeText(text).then(() => {
+                const notif = document.getElementById('notification');
+                if (notif) {
+                    notif.innerText = 'Skopiowano do schowka!';
+                    notif.classList.add('show');
+                    setTimeout(() => notif.classList.remove('show'), 2000);
+                }
+            }).catch(err => console.error('Błąd kopiowania:', err));
+        });
+
+        /**
+         * FUNKCJA REWIZYJNA: Sprawdza czy w bazie są oferty (ID), których nie ma w obecnym raporcie.
+         * Jeśli tak - pozwala je dodać do widoku, by wyrównać stan.
+         */
+        let currentMissingCandidates = [];
+        let currentMissingAccountKey = "";
+
+        window.discoverMissingFromDB = function(accountKey) {
+            const currentMonth = document.getElementById('activeMonth').value;
+            const db = invoicingDB[currentMonth];
+            if (!db) { alert("Brak danych w bazie dla tego miesiąca."); return; }
+
+            const logs = db.logs || [];
+            const accountType = accountKey.toUpperCase();
+            const existingIds = (lastGeneratedResults[accountKey] || []).map(i => i.id);
+
+            // 1. Znajdź ID z Logów (historycznie zafakturowane w tym miesiącu)
+            let idsInLogs = new Set();
+            logs.forEach(log => {
+                if (log.type === accountType && log.items) {
+                    log.items.forEach(it => idsInLogs.add(it.id));
+                }
+            });
+
+            // 2. Znajdź ID z samej struktury stanu (na wypadek gdyby nie było w logach np. powód importu CSV)
+            const dbItems = db[accountKey] || {};
+            const idsInDB = Object.keys(dbItems);
+
+            // Połącz zbiory i utwórz zbiór wyników
+            let allCandidateIds = new Set([...idsInLogs, ...idsInDB]);
+            let missing = [];
+
+            // 3. Filtruj: Tylko te, których brakuje w obecnym CSV ORAZ w bazie mają > 0 zafakturowane
+            allCandidateIds.forEach(id => {
+                const alreadyInDB = dbItems[id] || 0;
+                if (!existingIds.includes(id) && alreadyInDB > 0) {
+                    let sourceInfo = [];
+                    if (idsInLogs.has(id)) sourceInfo.push("Logi");
+                    if (idsInDB.includes(id)) sourceInfo.push("Baza");
+                    
+                    let adRiceInfo = mappings.offerIdToData[id] || { name: "Produkt archiwalny / brak w mapowaniu", payout: "0.00" };
+                    let offerNameCleaned = id === "NO_ID" ? adRiceInfo.name : cleanupAdRiceName(adRiceInfo.name);
+
+                    missing.push({
+                        id: id,
+                        name: offerNameCleaned,
+                        payout: parseFloat(adRiceInfo.payout || "0"),
+                        alreadyInDB: alreadyInDB,
+                        source: sourceInfo.join(" / ")
+                    });
+                }
+            });
+
+            if (missing.length === 0) {
+                alert("Nie znaleziono żadnych brakujących ofert (z zafakturowanymi leadami) dla tego konta.");
+                return;
+            }
+
+            // Otwórz modal
+            currentMissingCandidates = missing;
+            currentMissingAccountKey = accountKey;
+            window.renderMissingItemsTable();
+            document.getElementById('missingItemsModal').style.display = 'flex';
+        };
+
+        window.renderMissingItemsTable = function() {
+            const tbody = document.getElementById('missingItemsTbody');
+            tbody.innerHTML = '';
+            document.getElementById('selectAllMissing').checked = false;
+            document.getElementById('missingSearchInput').value = '';
+
+            currentMissingCandidates.forEach((item, index) => {
+                let tr = document.createElement('tr');
+                tr.className = "missing-row";
+                tr.innerHTML = `
+                    <td style="padding: 0.75rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <input type="checkbox" class="missing-checkbox" data-index="${index}">
+                    </td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); font-weight: 700;">#${item.id}</td>
+                    <td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);" class="missing-name">${item.name}</td>
+                    <td style="padding: 0.75rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span style="font-size: 0.7rem; color: #94a3b8; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">${item.source}</span>
+                    </td>
+                    <td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--success); font-weight: 700;">
+                        ${item.alreadyInDB}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        };
+
+        window.toggleAllMissing = function(masterCheckbox) {
+            const checkboxes = document.querySelectorAll('.missing-checkbox');
+            checkboxes.forEach(cb => {
+                // Zaznaczaj tylko te widoczne po ew. filtracji
+                if (cb.closest('tr').style.display !== 'none') {
+                    cb.checked = masterCheckbox.checked;
+                }
+            });
+        };
+
+        window.addSelectedMissingItems = function() {
+            const checkboxes = document.querySelectorAll('.missing-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert("Nie zaznaczono żadnych ofert.");
+                return;
+            }
+
+            checkboxes.forEach(cb => {
+                let index = parseInt(cb.getAttribute('data-index'));
+                let item = currentMissingCandidates[index];
+                
+                lastGeneratedResults[currentMissingAccountKey].push({
+                    id: item.id,
+                    title: `Lead Generation ${item.name} (Brak w raporcie) #${item.id}`,
+                    currentCount: 0,
+                    previousCount: item.alreadyInDB,
+                    delta: -item.alreadyInDB,
+                    price: item.payout,
+                    country: currentMissingAccountKey.toUpperCase(),
+                    type: currentMissingAccountKey
+                });
+            });
+
+            document.getElementById('missingItemsModal').style.display = 'none';
+            window.renderInvoicesFromCache();
+            alert(`Dodano ${checkboxes.length} ofert jako korekty ujemne.`);
+        };
+
+        // Globalny cache wyników do zatwierdzania
+        let lastGeneratedResults = { pl: [], hu: [], find: [], alcance: [] };
+
+        // NOWOŚĆ: Funkcja przenosząca sumę korygującą (dodatnią lub ujemną) do salda
+        window.transferToBalance = function(account, amount, month) {
+            const isRabat = amount < 0;
+            const actionType = isRabat ? "RABAT (obniżka)" : "DOPŁATĘ (zwiększenie)";
+            
+            if (!confirm(`Czy na pewno chcesz przenieść kwotę ${amount.toFixed(2)} € jako ${actionType} do salda firmy ${account.toUpperCase()}?\n\nSpowoduje to zapisanie korekt ilości leadów w historii sald, co zostanie uwzględnione przy sprawdzaniu miesiąca ${month}.`)) {
+                return;
+            }
+
+            const items = lastGeneratedResults[account];
+            const itemsToCorrect = items.filter(it => it.delta !== 0).map(it => ({
+                id: it.id,
+                delta: it.delta,
+                price: it.price,
+                title: it.title
+            }));
+
+            // 1. Dodaj do pendingAdjustments ze szczegółami
+            pendingAdjustments.push({
+                id: 'adj_' + Date.now(),
+                account: account,
+                amount: amount,
+                month: month,
+                timestamp: new Date().toLocaleString('pl-PL'),
+                status: 'pending',
+                items: itemsToCorrect
+            });
+            saveAdjustments();
+
+            // 2. Log do historii (bez nadpisywania głównego licznika w bazie, bo robimy to dynamicznie)
+            if (!invoicingDB[month]) invoicingDB[month] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [] };
+            if(!invoicingDB[month].logs) invoicingDB[month].logs = [];
+            
+            invoicingDB[month].logs.push({
+                timestamp: new Date().toLocaleString('pl-PL'),
+                invoiceNumber: "PRZENIESIENIE_DO_SALDA",
+                type: account.toUpperCase(),
+                mode: "AUTOMAT (KOREKTA SALDA)",
+                items: itemsToCorrect
+            });
+
+            saveInvoicingDB();
+            alert("Kwota i korekty ilości leadów zostały przeniesione do salda. System będzie teraz uwzględniał te zmiany przy wyliczaniu delty dla miesiąca " + month);
+            location.reload(); 
+        };
+
+        // Funkcja zatwierdzająca wyniki i zapisująca je do bazy wybranego miesiąca
+        window.confirmInvoice = function (type) {
+            let selectedMonth = document.getElementById('activeMonth').value;
+            let items = lastGeneratedResults[type];
+
+            if (!items || items.length === 0) {
+                alert("Brak danych do zatwierdzenia. Wygeneruj najpierw tabelę faktury.");
+                return;
+            }
+
+            const invoicingMode = document.getElementById('invoicingMode').value;
+            
+            // NOWOŚĆ: Obliczamy czy to miesiąc przeszły (zamknięty)
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const isPastMonth = (selectedMonth < currentMonthKey);
+
+            // Filtrujemy tylko te pozycje, które faktycznie "wchodzą" na tę fakturę (zmieniamy stan bazy)
+            let processedItems = items.filter(it => {
+                if (invoicingMode === 'cumulative') {
+                    // W trybie AUTOMAT: fakturujemy tylko wzrosty (chyba że miesiąc zamknięty)
+                    return (it.delta > 0 || isPastMonth) && it.delta !== 0;
+                } else {
+                    // W trybie KONTROLA: wszystko co ma deltę (1:1 z pliku)
+                    return it.delta !== 0;
+                }
+            });
+
+            // Konsumpcja rabatów z salda (Tylko tryb AUTOMAT i tylko te z przeszłych miesięcy)
+            let adjustmentsToApply = [];
+            if (invoicingMode === 'cumulative') {
+                adjustmentsToApply = pendingAdjustments.filter(a => a.account === type && a.status === 'pending' && a.month < selectedMonth);
+            }
+
+            if (processedItems.length === 0 && adjustmentsToApply.length === 0) {
+                alert("Brak pozycji do zatwierdzenia (wszystkie wartości to 0 lub pominięte spadki).");
+                return;
+            }
+
+            if (!invoicingDB[selectedMonth]) {
+                invoicingDB[selectedMonth] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [] };
+            }
+            if(!invoicingDB[selectedMonth].logs) invoicingDB[selectedMonth].logs = [];
+
+            const invoiceNum = document.getElementById(`invoice-num-${type}`).value.trim();
+            if (!invoiceNum) {
+                alert("Błąd: Numer faktury jest obowiązkowy!");
+                document.getElementById(`invoice-num-${type}`).focus();
+                return;
+            }
+
+            // Snapshot stanu PRZED zmianą (dla Undo - tylko dla faktycznie zmienianych pozycji)
+            let beforeState = {};
+            processedItems.forEach(it => {
+                beforeState[it.id] = invoicingDB[selectedMonth][type][it.id] || 0;
+            });
+
+            // Tworzenie wpisu w historii
+            let logEntry = {
+                timestamp: new Date().toLocaleString('pl-PL'),
+                invoiceNumber: invoiceNum,
+                type: type.toUpperCase(),
+                mode: invoicingMode === 'cumulative' ? "AUTOMAT" : "KONTROLA (ZAKRES)",
+                beforeState: beforeState,
+                items: processedItems.map(it => ({
+                    id: it.id,
+                    title: it.title,
+                    delta: it.delta,
+                    prev: it.previousCount,
+                    curr: it.currentCount,
+                    price: it.price,
+                })),
+                adjustments: []
+            };
+
+            // Zastosowanie rabatów
+            adjustmentsToApply.forEach(a => {
+                a.status = 'used';
+                a.usedByInvoice = invoiceNum;
+                logEntry.adjustments.push({...a});
+            });
+            if (adjustmentsToApply.length > 0) saveAdjustments();
+
+            invoicingDB[selectedMonth].logs.push(logEntry);
+
+            // Aktualizacja licznika głównego TYLKO dla przetworzonych pozycji
+            processedItems.forEach(item => {
+                invoicingDB[selectedMonth][type][item.id] = item.currentCount;
+            });
+
+            // Czyścimy Redo Logs dla tego typu i miesiąca (bo stan się zmienił)
+            if(!invoicingDB[selectedMonth].redoLogs) invoicingDB[selectedMonth].redoLogs = [];
+            invoicingDB[selectedMonth].redoLogs = invoicingDB[selectedMonth].redoLogs.filter(l => l.type !== type.toUpperCase());
+
+            saveInvoicingDB();
+
+            let notif = document.getElementById('notification');
+            notif.innerText = "Zatwierdzono i zapisano w Historii (" + type.toUpperCase() + ")";
+            notif.classList.add('show');
+            setTimeout(() => { notif.classList.remove('show'); }, 3000);
+        }
+
+        // Function allowing copying the table data
+        window.copyTableData = function (cardId) {
+            let card = document.getElementById(cardId);
+            let rows = card.querySelectorAll("tbody tr");
+            let tsvText = "";
+
+            rows.forEach(row => {
+                let cols = Array.from(row.querySelectorAll("td"));
+                let rowData = cols.map(c => c.innerText.trim()).join("\t");
+                tsvText += rowData + "\n";
+            });
+
+            navigator.clipboard.writeText(tsvText).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Skopiowano tabelę do schowka!";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3000);
+            });
+        };
+
+        // Kopiowanie danych w formacie zgodnym z wklejaniem do QuickBooks Online
+        window.copyToQuickBooks = function (accountKey) {
+            const items = lastGeneratedResults[accountKey];
+            if (!items) return;
+
+            const invoicingMode = document.getElementById('invoicingMode').value;
+            const selectedMonth = document.getElementById('activeMonth').value;
+            const now = new Date();
+            const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const isPastMonth = (selectedMonth < currentMonthKey);
+
+            let tsvText = "";
+            
+            items.forEach(item => {
+                let itemVal = item.delta * item.price;
+                if (item.delta > 0) {
+                    // Kopiujemy tylko pozycje na plus
+                    let title = item.title.replace(/\t/g, ' ').replace(/\n/g, ' ');
+                    let rateStr = item.price.toFixed(2);
+                    let amountStr = itemVal.toFixed(2);
+                    let rowTsv = `${title}\t\t${item.delta}\t${rateStr}\t${amountStr}`;
+                    tsvText += rowTsv + "\n";
+                }
+            });
+
+            const appliedAdjustments = pendingAdjustments.filter(a => a.account === accountKey && a.status === 'pending' && a.month < selectedMonth);
+            appliedAdjustments.forEach(adj => {
+                if (adj.amount > 0) {
+                    // Oczekujące dopłaty zostawiamy jako osobną pozycję na plus
+                    let title = `Korekta / Dopłata za: ${adj.month}`;
+                    let qty = 1;
+                    let rateStr = adj.amount.toFixed(2);
+                    let amountStr = adj.amount.toFixed(2);
+                    let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
+                    tsvText += rowTsv + "\n";
+                }
+            });
+            if (!tsvText) {
+                alert("Brak pozycji do skopiowania (wszystkie wartości wynoszą 0 lub są pominiętymi spadkami).");
+                return;
+            }
+
+            navigator.clipboard.writeText(tsvText).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Skopiowano format QuickBooks do schowka!";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3000);
+            });
+        };
+
+        // Modal Logic
+        const scraperModal = document.getElementById('scraperModal');
+        const openScraperBtn = document.getElementById('openScraperBtn');
+        const closeScraperBtn = document.getElementById('closeScraperBtn');
+        const copyScraperBtn = document.getElementById('copyScraperBtn');
+        const notif = document.getElementById('notification');
+
+        openScraperBtn.addEventListener('click', () => {
+            scraperModal.style.display = 'flex';
+        });
+
+        closeScraperBtn.addEventListener('click', () => {
+            scraperModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === scraperModal) {
+                scraperModal.style.display = 'none';
+            }
+        });
+
+        copyScraperBtn.addEventListener('click', () => {
+            const code = document.getElementById('scraperCodeBox').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                notif.innerText = "Kod scrapera w schowku! Wklej na AdRice.";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3500);
+            });
+        });
+
+        window.copyToClipboard = function (text) {
+            navigator.clipboard.writeText(text).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Skopiowano nazwę produktu!";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 2000);
+            });
+        };
+
+        // --- START SYSTEMU (Na samym końcu po definicji wszystkich funkcji) ---
+
+        // Wykrywanie pustej bazy (np. po wyczyszczeniu ciasteczek) — pokaż ostrzeżenie
+        (function checkEmptyDB() {
+            const dbIsEmpty = Object.keys(invoicingDB).length === 0;
+            if (dbIsEmpty) {
+                const bar = document.getElementById('backupStatusBar');
+                bar.style.display = 'block';
+                bar.style.background = 'rgba(239, 68, 68, 0.15)';
+                bar.style.color = '#f87171';
+                bar.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                bar.textContent = '⚠️ Baza jest pusta! Odtwórz dane klikając "📂 Importuj backup".';
+
+                setTimeout(() => {
+                    if (confirm('⚠️ Baza faktur jest pusta.\n\nCzy chcesz odtworzyć dane z pliku backup (.json)?')) {
+                        importDB();
+                    }
+                }, 400);
+            }
+        })();
+
+        initMonthSelector();
+        
+        // Event Listener dla modal search
+        document.getElementById('missingSearchInput')?.addEventListener('input', function(e) {
+            const searchTerms = e.target.value.toLowerCase().split(' ').filter(t => t.length > 0);
+            const rows = document.querySelectorAll('.missing-row');
+            
+            rows.forEach((row, index) => {
+                const item = currentMissingCandidates[index];
+                const textToSearch = (item.id + " " + item.name).toLowerCase();
+                
+                let matches = true;
+                for (let term of searchTerms) {
+                    if (!textToSearch.includes(term)) {
+                        matches = false;
+                        break;
+                    }
+                }
+                
+                if (matches) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                    row.querySelector('.missing-checkbox').checked = false; // uncheck if hidden
+                }
+            });
+        });
+
+        // Migracja logów dla starych wpisów
+        Object.keys(invoicingDB).forEach(m => {
+            if (typeof invoicingDB[m] === 'object' && !invoicingDB[m].logs) {
+                invoicingDB[m].logs = [];
+            }
+        });
+        
+        document.getElementById('activeMonth').addEventListener('change', () => {
+            // renderHistory(); // obsolete
+        });
+    </script>
+</body>
+
+</html>

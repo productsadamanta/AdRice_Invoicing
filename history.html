@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrum Historii - AdRice Invoicing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --accent: #10b981;
+            --accent-hover: #34d399;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1.5rem;
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; background: -webkit-linear-gradient(45deg, #10b981, #60a5fa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .month-selector select {
+            padding: 0.6rem 1rem;
+            background: var(--panel-bg);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Tabs Navigation */
+        .tabs-nav {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.5rem;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .tab-btn:hover { background: rgba(255, 255, 255, 0.05); color: white; }
+        .tab-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+
+        /* Main Content */
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .summary-card {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; }
+
+        /* Table Styles */
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .history-table th, .history-table td { padding: 1.2rem; text-align: left; border-bottom: 1px solid var(--border); }
+        .history-table th { background: rgba(255, 255, 255, 0.03); color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .row-delta { font-weight: 700; }
+        .delta-plus { color: #10b981; }
+        .delta-minus { color: #ef4444; }
+
+        .btn-action {
+            padding: 0.5rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-action:hover { background: rgba(255,255,255,0.15); }
+        .btn-undo { color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
+        .btn-undo:hover { background: rgba(248, 113, 113, 0.1); }
+        .btn-redo { color: #60a5fa; border-color: rgba(96, 165, 250, 0.3); }
+
+        .log-mode-tag {
+            font-size: 0.65rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+        }
+
+        .empty-state {
+            padding: 4rem;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--panel-bg);
+            border-radius: 12px;
+            border: 2px dashed var(--border);
+        }
+
+        /* Modal for Details */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-body {
+            background: var(--panel-bg);
+            width: 90%;
+            max-width: 900px;
+            max-height: 85vh;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 2rem;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+        .close-modal:hover { color: white; }
+
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+        .detail-table th, .detail-table td {
+            padding: 0.8rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .detail-table th { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; }
+
+        #notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #10b981;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 2000;
+        }
+
+        .summary-toggle {
+            padding: 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px dashed var(--accent);
+            border-radius: 8px;
+            color: var(--accent);
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .summary-toggle:hover { background: rgba(16, 185, 129, 0.2); }
+        .monthly-summary-table { display: none; }
+        .monthly-summary-table.active { display: block; animation: fadeIn 0.3s ease; }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Archiwum Faktur & Logów</h1>
+        <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+            <div style="background:rgba(15,23,42,0.8); border:1px dashed rgba(255,255,255,0.12); border-radius:6px; padding:0.35rem 0.6rem; display:flex; align-items:center; gap:0.4rem;">
+                <code style="font-size:0.65rem; color:#94a3b8;">Invoicing\ArchiveBackups\</code>
+                <button onclick="copyBackupPath()" style="padding:2px 6px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); border-radius:4px; color:var(--text-muted); cursor:pointer; font-size:0.65rem;" title="Kopiuj pełną ścieżkę">📋</button>
+            </div>
+            <button onclick="exportDB()" style="padding:0.4rem 0.8rem; background:rgba(245,158,11,0.15); border:1px solid #f59e0b; color:#f59e0b; border-radius:6px; cursor:pointer; font-size:0.8rem; font-weight:700;" title="Pobierz plik backup z aktualnym stanem całej bazy">💾 Zapisz backup</button>
+            <button onclick="importDB()" style="padding:0.4rem 0.8rem; background:rgba(59,130,246,0.1); border:1px solid #3b82f6; color:#60a5fa; border-radius:6px; cursor:pointer; font-size:0.8rem; font-weight:600;" title="Odtwórz bazę z pliku backup .json">📂 Importuj backup</button>
+            <div class="month-selector">
+                <select id="activeMonth" onchange="renderAll()"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs-nav">
+        <button class="tab-btn active" onclick="switchTab('PL')">TrendiSupply (PL)</button>
+        <button class="tab-btn" onclick="switchTab('HU')">TradeExpress (HU)</button>
+        <button class="tab-btn" onclick="switchTab('FIND')">EuroFlex (Find)</button>
+        <button class="tab-btn" onclick="switchTab('ALCANCE')">SmartMediaSolving (Alcance)</button>
+    </div>
+
+    <div id="contentPL" class="tab-content active"></div>
+    <div id="contentHU" class="tab-content"></div>
+    <div id="contentFIND" class="tab-content"></div>
+    <div id="contentALCANCE" class="tab-content"></div>
+
+    <!-- Modal for Detailed View -->
+    <div id="detailsModal" class="modal-overlay">
+        <div class="modal-body">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle" style="margin-top:0; color:var(--accent);">Szczegóły Zatwierdzenia</h2>
+            <div id="modalContent"></div>
+            <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button id="copyBatchBtn" class="btn-action" style="background: rgba(59, 130, 246, 0.2); border-color: #3b82f6;">📋 Kopiuj do Excela (CSV)</button>
+                <button class="btn-action" onclick="closeModal()" style="padding: 0.8rem 2rem;">Zamknij</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+    <script>
+        let invoicingDB = JSON.parse(localStorage.getItem('adrice_invoicing_db_v2')) || {};
+        let currentTab = 'PL';
+
+        function saveDB() {
+            localStorage.setItem('adrice_invoicing_db_v2', JSON.stringify(invoicingDB));
+            renderAll();
+        }
+
+        function exportDB() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invoicingDB, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute('href', dataStr);
+            const now = new Date();
+            const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+            const filename = `adrice_backup_${stamp}.json`;
+            a.setAttribute('download', filename);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showNotif(`💾 Pobrano: ${filename} → zapisz w Invoicing\\ArchiveBackups\\`, 5000);
+        }
+
+        function copyBackupPath() {
+            const path = 'C:\\Users\\produ\\Desktop\\Antigravity\\AdRice\\Invoicing\\ArchiveBackups\\';
+            navigator.clipboard.writeText(path).then(() => showNotif('📋 Ścieżka skopiowana! Wklej w oknie zapisu Brave.', 3500));
+        }
+
+        function importDB() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        invoicingDB = imported;
+                        saveDB();
+                        alert(`✅ Baza przywrócona! Znaleziono miesięcy: ${Object.keys(imported).length}.`);
+                    } catch (err) { alert('Błąd importu pliku!'); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function initMonthSelector() {
+            const select = document.getElementById('activeMonth');
+            const now = new Date();
+            // FIX: Używamy lokalnego roku/miesiąca zamiast toISOString() (który konwertuje do UTC
+            // i w strefie UTC+2 daje klucz o miesiąc za mały, np. kwiecień → '2026-03')
+            const currentVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            const endYear = 2026, endMonth = 11, startYear = 2026, startMonth = 2;
+
+            for (let year = endYear; year >= startYear; year--) {
+                let mEnd = (year === endYear) ? endMonth : 11;
+                let mStart = (year === startYear) ? startMonth : 0;
+                for (let m = mEnd; m >= mStart; m--) {
+                    // FIX: Budujemy klucz YYYY-MM bezpośrednio z liczb — bez konwersji przez UTC
+                    let val = `${year}-${String(m + 1).padStart(2, '0')}`;
+                    let label = new Date(year, m, 15).toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
+                    let opt = document.createElement('option');
+                    opt.value = val;
+                    opt.innerText = label;
+                    if (val === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                }
+            }
+        }
+
+        function switchTab(type) {
+            currentTab = type;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('content' + type).classList.add('active');
+            renderAll();
+        }
+
+        function renderAll() {
+            const month = document.getElementById('activeMonth').value;
+            const db = invoicingDB[month] || { pl: {}, hu: {}, find: {}, alcance: {}, logs: [], redoLogs: [] };
+            
+            // Render logic per tab
+            ['PL', 'HU', 'FIND', 'ALCANCE'].forEach(type => {
+                const container = document.getElementById('content' + type);
+                const logs = (db.logs || []).filter(l => l.type === type);
+                const redoLogs = (db.redoLogs || []).filter(l => l.type === type);
+
+                if (logs.length === 0 && redoLogs.length === 0) {
+                    container.innerHTML = '<div class="empty-state">Brak historii dla tego miesiąca w tej firmie.</div>';
+                    return;
+                }
+
+                // Sum stat
+                let totalLeads = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + it.delta, 0), 0);
+                let totalEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0), 0);
+                
+                // NOWOŚĆ: Podsumowanie Produktów
+                const summaryHtml = renderMonthlySummary(logs, type);
+
+                let html = `
+                    <div class="summary-card">
+                        <div><div class="stat-label">Lidów w tym miesiącu</div><div class="stat-value">${totalLeads}</div></div>
+                        <div><div class="stat-label">Wartość całkowita</div><div class="stat-value" style="color:var(--accent)">${totalEuro.toFixed(2)} €</div></div>
+                    </div>
+                    ${summaryHtml}
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th style="width:30px;">LP</th>
+                                <th>Nr Faktury</th>
+                                <th>Timestamp</th>
+                                <th>Tryb</th>
+                                <th>Delta</th>
+                                <th>Wartość</th>
+                                <th style="text-align:right">Akcja</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                // Render Logs (Active)
+                let activeRowNum = 1;
+                logs.reverse().forEach((log, idx) => {
+                    let d = log.items.reduce((s, it) => s + it.delta, 0);
+                    let val = log.items.reduce((s, it) => s + (it.delta * it.price), 0);
+                    let realIdxInDB = db.logs.indexOf(log);
+
+                    html += `
+                        <tr>
+                            <td style="color:var(--text-muted); font-size:0.8rem;">${activeRowNum++}</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-weight: 600; color: var(--accent);">${log.invoiceNumber || '---'}</span>
+                                    <button class="btn-action" style="padding: 0.2rem 0.4rem; font-size: 0.7rem;" onclick="editInvoiceNumber('${month}', ${realIdxInDB})">✏️</button>
+                                </div>
+                            </td>
+                            <td>${log.timestamp}</td>
+                            <td><span class="log-mode-tag">${log.mode || 'Automat'}</span></td>
+                            <td class="row-delta ${d >= 0 ? 'delta-plus' : 'delta-minus'}">${d > 0 ? '+' : ''}${d}</td>
+                            <td style="font-weight:700">${val.toFixed(2)} €</td>
+                            <td style="text-align:right">
+                                <button class="btn-action" onclick="viewDetails(${realIdxInDB})">Szczegóły</button>
+                                <button class="btn-action btn-undo" onclick="undo(${realIdxInDB})">↩ Cofnij</button>
+                                <button class="btn-action" style="color: #60a5fa; border-color: rgba(96, 165, 250, 0.3);" onclick="moveLogToMonth(${realIdxInDB})">➡️ Przenieś miesiąc</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                // Render Redo Logs (Separated)
+                if (redoLogs.length > 0) {
+                    html += `<tr style="background:rgba(255,255,255,0.02)"><td colspan="6" style="font-size:0.7rem; color:var(--text-muted); text-align:center">--- COFNIĘTE FAKTURY (MOŻNA PRZYWRÓCIĆ) ---</td></tr>`;
+                    let redoRowNum = 1;
+                    redoLogs.reverse().forEach((log) => {
+                        let d = log.items.reduce((s, it) => s + it.delta, 0);
+                        let realIdxInRedo = db.redoLogs.indexOf(log);
+
+                        html += `
+                            <tr style="opacity:0.5">
+                                <td style="color:var(--text-muted); font-size:0.8rem;">R-${redoRowNum++}</td>
+                                <td>${log.invoiceNumber || '---'}</td>
+                                <td style="text-decoration:line-through">${log.timestamp}</td>
+                                <td><span class="log-mode-tag">${log.mode || 'Automat'}</span></td>
+                                <td>${d > 0 ? '+' : ''}${d}</td>
+                                <td>-</td>
+                                <td style="text-align:right">
+                                    <button class="btn-action btn-redo" onclick="redo(${realIdxInRedo})">🔁 Przywróć</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            });
+        }
+
+        function renderMonthlySummary(logs, type) {
+            if (logs.length === 0) return '';
+
+            const aggregated = {};
+            logs.forEach(log => {
+                log.items.forEach(it => {
+                    if (it.delta === 0) return;
+                    
+                    if (!aggregated[it.id]) {
+                        aggregated[it.id] = {
+                            id: it.id,
+                            sku: it.sku,
+                            title: it.title,
+                            totalDelta: 0,
+                            totalEuro: 0,
+                            price: it.price
+                        };
+                    }
+                    
+                    aggregated[it.id].totalDelta += it.delta;
+                    aggregated[it.id].totalEuro += (it.delta * it.price);
+                    
+                    // Preferujemy nazwy/sku które nie są "UNKNOWN_SKU"
+                    if (aggregated[it.id].sku === "UNKNOWN_SKU" && it.sku !== "UNKNOWN_SKU") {
+                        aggregated[it.id].sku = it.sku;
+                        aggregated[it.id].title = it.title;
+                    }
+                });
+            });
+
+            const sorted = Object.values(aggregated).sort((a, b) => b.totalDelta - a.totalDelta);
+            if (sorted.length === 0) return '';
+
+            let html = `
+                <div class="summary-toggle" onclick="this.nextElementSibling.classList.toggle('active')">
+                    📊 Pokaż Podsumowanie Produktów (Miesiąc)
+                </div>
+                <div class="monthly-summary-table">
+                    <table class="detail-table" style="background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 2rem;">
+                        <thead>
+                            <tr>
+                                <th>Produkt / SKU</th>
+                                <th>ID</th>
+                                <th style="text-align:right">Suma Leadów</th>
+                                <th style="text-align:right">Suma Wartości</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            sorted.forEach(prod => {
+                html += `
+                    <tr>
+                        <td style="font-size:0.8rem;">${prod.title}</td>
+                        <td style="font-size:0.7rem; color:var(--text-muted)">#${prod.id}</td>
+                        <td style="text-align:right; font-weight:700;">${prod.totalDelta}</td>
+                        <td style="text-align:right; font-weight:700; color:var(--accent)">${prod.totalEuro.toFixed(2)} €</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table></div>`;
+            return html;
+        }
+
+        window.viewDetails = function(idx) {
+            const m = document.getElementById('activeMonth').value;
+            const log = invoicingDB[m].logs[idx];
+            if (!log) return;
+
+            document.getElementById('modalTitle').innerHTML = `PODGLĄD FAKTURY: <span style="color: white;">${log.invoiceNumber || '---'}</span> <br> <span style="font-size: 0.9rem; color: var(--text-muted);">${log.type} (${log.timestamp})</span>`;
+            
+            let sumDelta = 0;
+            let sumTotal = 0;
+
+            let html = `
+                <div style="margin-bottom:1rem; font-size:0.9rem; color:var(--text-muted);">Tryb: <strong>${log.mode}</strong></div>
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">#</th>
+                            <th>Produkt / SKU</th>
+                            <th style="text-align:right">Leady (Delta)</th>
+                            <th style="text-align:right">Cena</th>
+                            <th style="text-align:right">Suma</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let rowNum = 1;
+            log.items.forEach(it => {
+                if (it.delta !== 0) {
+                    let total = it.delta * it.price;
+                    sumDelta += it.delta;
+                    sumTotal += total;
+
+                    html += `
+                        <tr>
+                            <td style="color: var(--text-muted); font-size: 0.8rem;">${rowNum++}</td>
+                            <td style="font-size:0.85rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    ${it.title}
+                                    <button class="btn-action" style="padding: 2px 5px; font-size: 10px; flex-shrink: 0; margin-left: 0;" onclick="copyToClipboard('${it.title.replace(/'/g, "\\'")}')" title="Kopiuj nazwę">📋</button>
+                                </div>
+                            </td>
+                            <td style="text-align:right; font-weight:700;">${it.delta > 0 ? '+' : ''}${it.delta}</td>
+                            <td style="text-align:right; color:var(--text-muted);">${it.price.toFixed(2)} €</td>
+                            <td style="text-align:right; font-weight:700; color:var(--accent);">${total.toFixed(2)} €</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            // NOWOŚĆ: Wyświetlanie RABATÓW/KOREKT zapisanych w danym logu
+            if (log.adjustments && log.adjustments.length > 0) {
+                log.adjustments.forEach(adj => {
+                    sumTotal += adj.amount;
+                    html += `
+                        <tr style="background: rgba(16, 185, 129, 0.05); font-style: italic;">
+                            <td style="color: var(--text-muted); font-size: 0.8rem;">${rowNum++}</td>
+                            <td style="color:var(--success);">Korekta / Rabat (wyrównanie za: ${adj.month})</td>
+                            <td style="text-align:right">-</td>
+                            <td style="text-align:right; color:var(--text-muted);">${Math.abs(adj.amount).toFixed(2)} €</td>
+                            <td style="text-align:right; font-weight:700; color:var(--success);">${adj.amount.toFixed(2)} €</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            html += `
+                <tr style="background: rgba(16, 185, 129, 0.1); font-weight: 800;">
+                    <td colspan="2" style="color:var(--accent)">SUMA CAŁKOWITA:</td>
+                    <td style="text-align:right;">${sumDelta}</td>
+                    <td style="text-align:right;">-</td>
+                    <td style="text-align:right; color:#fbbf24; font-size:1.1rem;">${sumTotal.toFixed(2)} €</td>
+                </tr>
+            </tbody></table>`;
+
+            document.getElementById('modalContent').innerHTML = html;
+            document.getElementById('detailsModal').style.display = 'flex';
+
+            // Przypisanie akcji kopiowania dla konkretnego logu
+            document.getElementById('copyBatchBtn').onclick = () => {
+                let csv = "Produkt / SKU\tLeady\tCena\tSuma\n";
+                log.items.forEach(it => {
+                    if (it.delta !== 0) {
+                        csv += `${it.title}\t${it.delta}\t${it.price.toFixed(2)}\t${(it.delta * it.price).toFixed(2)}\n`;
+                    }
+                });
+                csv += `SUMA CAŁKOWITA:\t${sumDelta}\t-\t${sumTotal.toFixed(2)}`;
+                
+                navigator.clipboard.writeText(csv).then(() => {
+                    showNotif("Skopiowano dane do schowka! Możesz wkleić do Excela.");
+                });
+            };
+        }
+
+        window.closeModal = function() {
+            document.getElementById('detailsModal').style.display = 'none';
+        }
+
+        window.undo = function(idx) {
+            const m = document.getElementById('activeMonth').value;
+            const db = invoicingDB[m];
+            const log = db.logs[idx];
+            if(!confirm("Czy na pewno cofnąć to zatwierdzenie?")) return;
+
+            // Revert counts
+            const typeKey = log.type.toLowerCase();
+            Object.keys(log.beforeState).forEach(id => {
+                db[typeKey][id] = log.beforeState[id];
+            });
+
+            // Move to redo stack
+            if(!db.redoLogs) db.redoLogs = [];
+            db.redoLogs.push(db.logs.splice(idx, 1)[0]);
+            
+            saveDB();
+            showNotif("Cofnięto fakturę. Odśwież Hub aby zobaczyć zmiany.");
+        }
+
+        window.redo = function(idx) {
+            const m = document.getElementById('activeMonth').value;
+            const db = invoicingDB[m];
+            const log = db.redoLogs[idx];
+            
+            // Re-apply counts
+            const typeKey = log.type.toLowerCase();
+            log.items.forEach(it => {
+                db[typeKey][it.id] = it.curr;
+            });
+
+            // Move back to logs
+            db.logs.push(db.redoLogs.splice(idx, 1)[0]);
+            
+            saveDB();
+            showNotif("Przywrócono fakturę.");
+        }
+
+        window.moveLogToMonth = function(idx) {
+            const currentMonth = document.getElementById('activeMonth').value;
+            const db = invoicingDB[currentMonth];
+            const log = db.logs[idx];
+            if (!log) return;
+
+            let [y, m] = currentMonth.split('-');
+            let nd = new Date(parseInt(y), parseInt(m), 1);
+            let nextMStr = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}`;
+
+            const targetMonth = prompt("Podaj docelowy miesiąc w formacie YYYY-MM:", nextMStr);
+            if (!targetMonth || targetMonth === currentMonth) return;
+
+            if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
+                alert("Nieprawidłowy format miesiąca. Użyj YYYY-MM.");
+                return;
+            }
+
+            if (!confirm(`Czy na pewno przenieść tę fakturę (Nr: ${log.invoiceNumber || '---'}) z ${currentMonth} do ${targetMonth}?`)) return;
+
+            if (!invoicingDB[targetMonth]) {
+                invoicingDB[targetMonth] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [], redoLogs: [] };
+            }
+            const targetDb = invoicingDB[targetMonth];
+            const typeKey = log.type.toLowerCase();
+
+            log.items.forEach(it => {
+                if (it.delta !== 0) {
+                    db[typeKey][it.id] = Math.max(0, (db[typeKey][it.id] || 0) - it.delta);
+                    targetDb[typeKey][it.id] = (targetDb[typeKey][it.id] || 0) + it.delta;
+                }
+            });
+
+            db.logs.splice(idx, 1);
+            targetDb.logs.push(log);
+
+            saveDB();
+            alert(`Faktura pomyślnie przeniesiona do ${targetMonth}.`);
+        }
+
+        window.editInvoiceNumber = function(month, logIdx) {
+            const log = invoicingDB[month].logs[logIdx];
+            const newNum = prompt("Edytuj numer faktury:", log.invoiceNumber || "");
+            if (newNum !== null) {
+                log.invoiceNumber = newNum.trim();
+                saveDB();
+                showNotif("Zaktualizowano numer faktury.");
+            }
+        }
+
+        window.copyToClipboard = function(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotif("Skopiowano do schowka!");
+            });
+        }
+
+        function showNotif(msg, duration = 3000) {
+            const n = document.getElementById('notification');
+            n.innerText = msg;
+            n.style.display = 'block';
+            setTimeout(() => n.style.display = 'none', duration);
+        }
+
+        window.onload = () => {
+            initMonthSelector();
+            renderAll();
+        }
+    </script>
+</body>
+
+</html>

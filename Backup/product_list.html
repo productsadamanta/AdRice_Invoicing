@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdRice Product List Generator</title>
+    <!-- Czcionki Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse do parsowania CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: -webkit-linear-gradient(45deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 0.5rem 0;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .file-input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px dashed var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]:hover {
+            border-color: var(--accent);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        button.generate-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(45deg, #2563eb, #4f46e5);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.39);
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        button.generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+        }
+
+        button.generate-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Results Section */
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .list-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .list-header h3 {
+            margin: 0;
+            color: #f1f5f9;
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 600;
+            background: rgba(0,0,0,0.2);
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .tag { background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; text-transform: uppercase; }
+
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--success);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2000;
+        }
+
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 1rem;
+            outline: none;
+        }
+
+        .search-box:focus {
+            border-color: var(--accent);
+        }
+
+        .stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .stats b { color: var(--text-main); }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>AdRice Product List Generator</h1>
+        <p>Konsolidacja bazy produktów z SKU i ID Ofert</p>
+    </div>
+
+    <div class="container">
+        <!-- Sidebar with Inputs -->
+        <div class="panel">
+            <h2>Pliki Wejściowe</h2>
+
+            <div class="file-input-group">
+                <label>1a. Oferty AdRice (Aktywne)</label>
+                <input type="file" id="fileAdRiceActive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>1b. Oferty AdRice (Nieaktywne)</label>
+                <input type="file" id="fileAdRiceInactive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2a. Amsped Lists: Uncapped</label>
+                <input type="file" id="fileListsUncapped" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2b. Amsped Lists: Find</label>
+                <input type="file" id="fileListsFind" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2c. Amsped Lists: Alcance</label>
+                <input type="file" id="fileListsAlcance" accept=".csv">
+            </div>
+
+            <button class="generate-btn" id="generateBtn">Generuj Listę Produktów</button>
+            <p style="font-size: 0.75rem; margin-top: 1rem; line-height: 1.4;">
+                System połączy ID z AdRice z mapowaniami SKU z list Amsped, tworząc nazwy w formacie faktury.
+            </p>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="results-container" id="resultsArea">
+            <div class="panel" style="text-align: center; color: var(--text-muted);" id="placeholder">
+                <p>Wczytaj pliki i kliknij "Generuj Listę Produktów", aby zobaczyć wyniki.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">Skopiowano do schowka!</div>
+
+    <script>
+        // Globalny stan mapowań
+        let mappings = {
+            idToAdRiceData: {}, // OfferID -> {name, payout}
+            idToAmspedInfo: {}  // OfferID -> [{rawName, country, sku}]
+        };
+
+        // Pomocnicze funkcje tekstowe (Zgodne z index.html)
+        function extractSKU(str) {
+            let match = str.match(/SKU\s*(\d+)/i);
+            if (match) return `SKU${match[1]}`;
+            let ekaMatch = str.match(/(EK[AM]\s*\d+)/i);
+            if (ekaMatch) return ekaMatch[1].replace(/\s+/g, '');
+            return "UNKNOWN_SKU";
+        }
+
+        function getCountryCode(productName) {
+            let nameUpper = productName.toUpperCase();
+            if (nameUpper.includes("HUNGARY")) return "HU";
+            if (nameUpper.includes("GERMANY")) return "DE";
+            if (nameUpper.includes("LITHUANIA")) return "LT";
+            if (nameUpper.includes("CZECH")) return "CZ";
+            if (nameUpper.includes("SLOVAKIA")) return "SK";
+            if (nameUpper.includes("LATVIA")) return "LV";
+            if (nameUpper.includes("PORTUGAL")) return "PT";
+            if (nameUpper.includes("SPAIN")) return "ES";
+            return "PL"; // Domyślnie PL (Uncapped)
+        }
+
+        function getFullCountryName(code) {
+            const map = {
+                "PL": "Poland", "HU": "Hungary", "DE": "Germany",
+                "LT": "Lithuania", "CZ": "Czechia", "SK": "Slovakia",
+                "LV": "Latvia", "PT": "Portugal", "ES": "Spain"
+            };
+            return map[code] || code;
+        }
+
+        function cleanupAdRiceName(name) {
+            if (!name) return "Brak Nazwy";
+            let cleaned = name.replace(/^\[.*?\]\s*/, '');
+            cleaned = cleaned.replace(/\s+\d+(?:[\s\.,]\d{3})*(?:[,\.]\d{1,2})?\s*(?:€|CZK|PLN|HUF|RON|LEI|BGN|EUR).*$/i, '');
+            cleaned = cleaned.replace(/\s*\|.*$/i, '');
+            return cleaned.trim();
+        }
+
+        function normalizeAmspedName(name) {
+            if (!name) return "";
+            return name.toLowerCase().replace(/^blocked\s+/i, '').trim();
+        }
+
+        // Parse single CSV file using Promise
+        function parseCSVFile(file, options = {}) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve([]);
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    ...options,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => reject(err)
+                });
+            });
+        }
+
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.innerText = "Przetwarzanie...";
+
+            try {
+                const fileAdRiceActive = document.getElementById('fileAdRiceActive').files[0];
+                const fileAdRiceInactive = document.getElementById('fileAdRiceInactive').files[0];
+                const fileListsUncapped = document.getElementById('fileListsUncapped').files[0];
+                const fileListsFind = document.getElementById('fileListsFind').files[0];
+                const fileListsAlcance = document.getElementById('fileListsAlcance').files[0];
+
+                if (!fileAdRiceActive && !fileAdRiceInactive) {
+                    alert("Musisz wgrać przynajmniej jeden plik ofert AdRice!");
+                    throw new Error("Missing AdRice data");
+                }
+
+                mappings.idToAdRiceData = {};
+                mappings.idToAmspedInfo = {};
+
+                // 1. Przetwarzanie AdRice
+                const processAdRice = async (file) => {
+                    let data = await parseCSVFile(file, { delimiter: ";" });
+                    data.forEach(row => {
+                        let id = row["Offer_ID"]?.trim();
+                        if (id) {
+                            mappings.idToAdRiceData[id] = {
+                                name: row["Offer_Name"]?.trim() || "Brak Nazwy",
+                                payout: parseFloat(row["Payout"] || "0").toFixed(2)
+                            };
+                        }
+                    });
+                };
+
+                await processAdRice(fileAdRiceActive);
+                await processAdRice(fileAdRiceInactive);
+
+                // 2. Przetwarzanie List Amsped
+                const processAmspedList = async (file) => {
+                    let data = await parseCSVFile(file);
+                    data.forEach(row => {
+                        let rawName = row["name"] || row["Name"] || row["Prodotto"] || Object.values(row)[2] || "";
+                        let ucpCol = row["SKU"] || row["sku"] || Object.values(row)[1] || "";
+                        
+                        let offerIdMatch = ucpCol.match(/UCP(\d+)/i);
+                        let offerId = offerIdMatch ? offerIdMatch[1] : "";
+
+                        if (offerId) {
+                            if (!mappings.idToAmspedInfo[offerId]) mappings.idToAmspedInfo[offerId] = [];
+                            mappings.idToAmspedInfo[offerId].push({
+                                rawName: rawName,
+                                sku: extractSKU(rawName),
+                                country: getCountryCode(rawName)
+                            });
+                        }
+                    });
+                };
+
+                await processAmspedList(fileListsUncapped);
+                await processAmspedList(fileListsFind);
+                await processAmspedList(fileListsAlcance);
+
+                // 3. Generowanie Finalnej Listy
+                let finalResults = [];
+                let adRiceIds = Object.keys(mappings.idToAdRiceData);
+
+                adRiceIds.forEach(id => {
+                    let adRice = mappings.idToAdRiceData[id];
+                    let cleanName = cleanupAdRiceName(adRice.name);
+                    let amspedEntries = mappings.idToAmspedInfo[id];
+
+                    if (amspedEntries && amspedEntries.length > 0) {
+                        // Jeśli mamy dane z Amsped, generujemy wpis dla każdego powiązanego wariantu (kraju/sku)
+                        amspedEntries.forEach(entry => {
+                            let fullCountry = getFullCountryName(entry.country);
+                            finalResults.push({
+                                invoiceName: cleanName, // Czysta nazwa bez prefiksów
+                                offerId: `#${id}`,
+                                sku: entry.sku,
+                                country: entry.country,
+                                originalName: adRice.name
+                            });
+                        });
+                    } else {
+                        // Jeśli brak w Amsped, dodajemy wpis z AdRice (bez [PENDING MAPPING])
+                        finalResults.push({
+                            invoiceName: cleanName, // Czysta nazwa
+                            offerId: `#${id}`,
+                            sku: "MISSING",
+                            country: "?",
+                            originalName: adRice.name
+                        });
+                    }
+                });
+
+                renderResults(finalResults);
+
+            } catch (error) {
+                console.error(error);
+                alert("Błąd: " + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Generuj Listę Produktów";
+            }
+        });
+
+        function renderResults(results) {
+            const container = document.getElementById('resultsArea');
+            container.innerHTML = "";
+
+            if (results.length === 0) {
+                container.innerHTML = `<div class="panel" style="text-align:center"><p>Nie znaleziono danych do wyświetlenia.</p></div>`;
+                return;
+            }
+
+            // Statystyki
+            let missingSku = results.filter(r => r.sku === 'MISSING').length;
+
+            let htmlString = `
+                <div class="list-card">
+                    <div class="list-header">
+                        <h3>Wygenerowana Lista Produktów</h3>
+                        <button class="copy-btn" onclick="copyTableToExcel()">Kopiuj Tabelę (Excel)</button>
+                    </div>
+
+                    <div class="stats">
+                        <span>Razem produktów: <b>${results.length}</b></span>
+                        <span>Brak mapowania SKU: <b style="color: #ef4444;">${missingSku}</b></span>
+                    </div>
+
+                    <input type="text" class="search-box" id="tableSearch" placeholder="Filtruj listę (np. nazwa, sku, kraj)...">
+
+                    <div style="max-height: 600px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px;">
+                        <table id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>Nazwa Produktu</th>
+                                    <th>Nr Oferty</th>
+                                    <th>SKU</th>
+                                    <th>Kraj</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            results.forEach(res => {
+                htmlString += `
+                    <tr>
+                        <td>${res.invoiceName}</td>
+                        <td style="font-family: monospace; color: var(--accent);">${res.offerId}</td>
+                        <td style="font-weight: 600;">${res.sku}</td>
+                        <td><span class="tag">${res.country}</span></td>
+                    </tr>
+                `;
+            });
+
+            htmlString += `</tbody></table></div></div>`;
+            container.innerHTML = htmlString;
+
+            // Search functionality
+            document.getElementById('tableSearch').addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#productsTable tbody tr');
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    row.style.display = text.includes(term) ? "" : "none";
+                });
+            });
+        }
+
+        window.copyTableToExcel = function () {
+            let table = document.getElementById("productsTable");
+            if (!table) return;
+
+            let tsvText = "Pełna Nazwa Produktu\tNr Oferty\tSKU\tKraj\n";
+            let rows = table.querySelectorAll("tbody tr");
+
+            rows.forEach(row => {
+                if (row.style.display !== "none") {
+                    let cols = Array.from(row.querySelectorAll("td"));
+                    let rowData = cols.map(c => c.innerText.trim()).join("\t");
+                    tsvText += rowData + "\n";
+                }
+            });
+
+            navigator.clipboard.writeText(tsvText).then(() => {
+                let notif = document.getElementById('notification');
+                notif.innerText = "Tabela skopiowana do schowka!";
+                notif.classList.add('show');
+                setTimeout(() => { notif.classList.remove('show'); }, 3000);
+            });
+        };
+    </script>
+</body>
+
+</html>
