@@ -1677,10 +1677,16 @@
                             </div>
                         </div>
                         <div class="correction-summary">
-                            <div class="stat-group" style="flex: 1;">
-                                <span class="stat-label">KWOTA DO WYSTAWIENIA NA NOWEJ FAKTURZE</span>
-                                <span class="stat-delta" style="color:#10b981;">${finalCorrectionValue.toFixed(2)} €</span>
-                                ${topBreakdownHtml}
+                            <div style="display: flex; gap: 2rem; flex: 1;">
+                                <div class="stat-group">
+                                    <span class="stat-label">Ilość leadów (delta)</span>
+                                    <span class="stat-delta" style="color: var(--accent-hover);">${sumDelta > 0 ? '+' : ''}${sumDelta}</span>
+                                </div>
+                                <div class="stat-group" style="flex: 1;">
+                                    <span class="stat-label">KWOTA DO WYSTAWIENIA NA NOWEJ FAKTURZE</span>
+                                    <span class="stat-delta" style="color:#10b981;">${finalCorrectionValue.toFixed(2)} €</span>
+                                    ${topBreakdownHtml}
+                                </div>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:0.5rem;">
                                 <button class="copy-btn" style="background:rgba(16, 185, 129, 0.15); border: 1px solid var(--success); color: #34d399; font-weight: bold;" onclick="copyToQuickBooks('${elementId}')">📗 Kopiuj do QuickBooks</button>
@@ -1694,19 +1700,29 @@
                             </div>
                         </div>
                         ${finalCorrectionValue < 0 ? '<div class="negative-warning">⚠️ Suma korekty jest ujemna (-' + Math.abs(finalCorrectionValue).toFixed(2) + '€).</div>' : ''}
-                        <table id="table-${elementId}">
-                            <thead>
-                                <tr>
-                                    <th style="width: 30px;">LP</th>
-                                    <th>Nazwa Pozycji</th>
-                                    <th>Zafakturowano</th>
-                                    <th>Raport (Suma)</th>
-                                    <th>NOWA FAKTURA</th>
-                                    <th style="text-align: right;">Cena/Szt</th>
-                                    <th style="text-align: right;">Wartość</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                        
+                        <!-- Przycisk rozwijania listy pozycji -->
+                        <div class="table-toggle-wrapper" style="margin-bottom: 1.5rem;">
+                            <button id="toggle-btn-${elementId}" onclick="toggleInvoiceTable('${elementId}', ${itemsArr.length})" style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); color: var(--accent-hover); padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; outline: none; font-size: 0.85rem;">
+                                <span id="toggle-icon-${elementId}">▼</span> Rozwiń listę pozycji (${itemsArr.length})
+                            </button>
+                        </div>
+
+                        <!-- Ukryty kontener tabeli -->
+                        <div id="table-container-${elementId}" style="display: none; transition: all 0.3s ease;">
+                            <table id="table-${elementId}">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30px;">LP</th>
+                                        <th>Nazwa Pozycji</th>
+                                        <th>Zafakturowano</th>
+                                        <th>Raport (Suma)</th>
+                                        <th>NOWA FAKTURA</th>
+                                        <th style="text-align: right;">Cena/Szt</th>
+                                        <th style="text-align: right;">Wartość</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
                 `;
 
                 let rowNum = 1;
@@ -1777,7 +1793,13 @@
                         <td>${sumPrev}</td><td>${sumCurrent}</td>
                         <td style="color:${sumDelta >= 0 ? 'var(--success)' : '#f87171'}">${sumDelta > 0 ? '+' : ''}${sumDelta}</td>
                         <td>-</td><td style="text-align: right; color:#fbbf24;">${finalCorrectionValue.toFixed(2)} €</td>
-                    </tr></tbody></table></div>
+                    </tr></tbody></table>
+                    <div style="margin-top: 1rem; text-align: right;">
+                        <button onclick="toggleInvoiceTable('${elementId}', ${itemsArr.length})" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); color: var(--text-muted); padding: 0.5rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.8rem;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='white';" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-muted)';">
+                            ▲ Zwiń listę pozycji
+                        </button>
+                    </div>
+                    </div></div>
                 `;
                 return htmlString;
             };
@@ -1786,6 +1808,19 @@
             container.innerHTML += createInvoiceView("TradeExpress (Uncapped)", invoiceHU, "hu");
             container.innerHTML += createInvoiceView("EuroFlex (Find)", invoiceFind, "find");
             container.innerHTML += createInvoiceView("SmartMediaSolving(Alcance)", invoiceAlcance, "alcance");
+        };
+
+        // Funkcja do rozwijania i zwijania tabeli pozycji na fakturze
+        window.toggleInvoiceTable = function(elementId, itemsCount) {
+            const container = document.getElementById(`table-container-${elementId}`);
+            const btn = document.getElementById(`toggle-btn-${elementId}`);
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.innerHTML = `<span id="toggle-icon-${elementId}">▲</span> Zwiń listę pozycji`;
+            } else {
+                container.style.display = 'none';
+                btn.innerHTML = `<span id="toggle-icon-${elementId}">▼</span> Rozwiń listę pozycji (${itemsCount})`;
+            }
         };
 
         // Function allowing copying a single summary line
