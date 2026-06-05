@@ -4,6 +4,25 @@ Wszystkie istotne zmiany w strukturze, logice i wyglądzie systemu są dokumento
 
 ---
 
+## [2.5.2] - 2026-05-06
+### Naprawiono
+- **Uwzględnianie Spadków Znikających Ofert (Drops to 0):** Naprawiono błąd w trybie "AUTOMAT", przez który oferty, których ilość leadów spadła do zera (i całkowicie zniknęły z pliku raportu Amsped), nie były brane pod uwagę przy obliczaniu delty. Teraz system automatycznie skanuje bazę `alreadyPaid` dla aktualnego miesiąca i sztucznie wstrzykuje oferty z wartością `positivi: 0`, co poprawnie generuje ujemną deltę (korektę na minus) i odlicza je od łącznej wartości faktury bez konieczności ręcznego używania funkcji "Weryfikuj braki".
+
+### Dodano
+- **Wizualne Podsumowanie Składowych (Subtotals):** Dodano w trybie "AUTOMAT" (dla zamkniętych miesięcy) rozbicie ostatecznej kwoty faktury na dwie pozycje: `Suma delta >0` (wartość dodatnich leadów) oraz `Discount` (łączna wartość ujemnych korekt ze spadków). Zestawienie to jest teraz widoczne w dwóch miejscach: na samym dole tabeli wyników oraz **na samej górze obok głównej kwoty do wystawienia na fakturze**, co pozwala na błyskawiczną weryfikację bez konieczności scrollowania.
+
+---
+
+## [2.5.1] - 2026-05-04
+### Naprawiono
+- **Mapping Logic (Normalizacja):** Rozszerzono funkcję `normalizeAmspedName` o usuwanie prefixów statusu takich jak `ON HOLD`, `BLOCKED` oraz `??`. Naprawia to błąd mapowania produktów takich jak SKU182.
+- **SKU Extraction:** Ulepszono wyciąganie SKU z nazw Amsped, dodając obsługę kodów alfanumerycznych (np. `skuAD4407`, `skuCR7021`) oraz nadając priorytet formatom `EKA`/`EKM` (np. `EKM033`). Eliminuje to błędy `UNKNOWN_SKU` oraz błędne prefixy.
+
+### Dodano
+- **Miesięczne Podsumowanie Produktów:** W Centrum Historii (`history.html`) dodano nową sekcję agregującą wszystkie leady z danego miesiąca według ID produktu. Pozwala to na spójne podliczanie wyników nawet w przypadku wariacji nazw lub SKU w poszczególnych fakturach.
+
+---
+
 ## [2.5.0] - 2026-04-30
 ### Dodano
 - **Weryfikacja Braków (Rewizja):** Dodano funkcję "Weryfikuj braki" (🔍), która skanuje bazę danych w poszukiwaniu ofert, których brakuje w obecnym raporcie, a mają zafakturowane leady. Pozwala to na szybkie dodanie korekt ujemnych dla ofert, które przestały "leadować".

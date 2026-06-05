@@ -5,6 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>AdRice Invoicing Hub</title>
     <!-- Czcionki Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -1184,17 +1185,27 @@
 
         // Pomocnicze funkcje tekstowe
         function extractSKU(str) {
-            let match = str.match(/SKU\s*(\d+)/i);
-            if (match) return `SKU${match[1]}`;
+            if (!str) return "UNKNOWN_SKU";
+
+            // 1. Obsługa formatu EKA/EKM (priorytet) - np. EKAM 033 -> EKM033
             let ekaMatch = str.match(/(EK[AM]\s*\d+)/i);
-            if (ekaMatch) return ekaMatch[1].replace(/\s+/g, '');
+            if (ekaMatch) return ekaMatch[1].replace(/\s+/g, '').toUpperCase();
+            
+            // 2. Obsługa SKU z cyframi oraz literami (np. SKU182, SKUAD4407, SKUCR7021)
+            let match = str.match(/SKU\s*([a-z0-9]+)/i);
+            if (match) return `SKU${match[1].toUpperCase()}`;
+            
             return "UNKNOWN_SKU";
         }
 
-        // Normalizacja nazwy z Amspedu by powiązać Lists z Performances wykluczając drobne wariancje np "BLOCKED"
+        // Normalizacja nazwy z Amspedu by powiązać Lists z Performances wykluczając drobne wariancje np "BLOCKED", "ON HOLD"
         function normalizeAmspedName(name) {
             if (!name) return "";
-            return name.toLowerCase().replace(/^blocked\s+/i, '').trim();
+            // Usuwa prefixy statusu, które mogą pojawiać się w Lists, ale nie w Performance
+            return name.toLowerCase()
+                .replace(/^(blocked|on hold|\?\?)\s+/i, '')
+                .replace(/\s+/g, ' ')
+                .trim();
         }
 
         // Czyszczenie nazwy oferty z AdRice z niepotrzebnych prefixów (np [P]) i sufiksów (Cena | Kraj)
@@ -1356,6 +1367,35 @@
                         }
                     });
 
+
+                    // KROK 1.5: Dodaj oferty, które są w bazie (alreadyPaid > 0), ale całkowicie zniknęły z pliku Amsped (spadki do 0)
+                    let dbAccount = invoicingDB[currentMonth][accountName === "Find" ? "find" : accountName === "Alcance" ? "alcance" : "pl"]; // Tymczasowo, dla PL/HU sprawdzimy niżej
+                    
+                    // Dla Uncapped musimy sprawdzić zarówno PL jak i HU
+                    let accountsToCheck = accountName === "Uncapped" ? ["pl", "hu"] : [accountName === "Find" ? "find" : "alcance"];
+                    
+                    accountsToCheck.forEach(accKey => {
+                        let dbItems = invoicingDB[currentMonth][accKey] || {};
+                        Object.keys(dbItems).forEach(offerId => {
+                            let key = `${offerId}_${accKey}`;
+                            if (!aggregated[key] && dbItems[offerId] > 0) {
+                                // Oferta jest w bazie, ale nie było jej w pliku Amsped
+                                let adRiceInfo = mappings.offerIdToData[offerId] || { name: "Brak w mapowaniu (usunięto z Amsped)", payout: "0.00" };
+                                let offerNameCleaned = offerId === "NO_ID" ? "Nieznana Oferta" : cleanupAdRiceName(adRiceInfo.name);
+                                let formattedOfferId = offerId === "NO_ID" ? "NO_ID" : `#${offerId}`;
+                                let country = accKey === "pl" ? "PL" : accKey === "hu" ? "HU" : accountName === "Find" ? "Find" : "Alcance"; // Uproszczenie kraju
+                                
+                                aggregated[key] = {
+                                    id: offerId,
+                                    title: `Lead Generation ${offerNameCleaned} ${country} ${formattedOfferId} [SPADEK DO 0]`,
+                                    positivi: 0,
+                                    price: parseFloat(adRiceInfo.payout),
+                                    country: country,
+                                    type: accKey
+                                };
+                            }
+                        });
+                    });
 
                     // KROK 2: Oblicz delty i zbierz wyniki na podstawie zagregowanych danych
                     let results = [];
@@ -1576,19 +1616,52 @@
             const createInvoiceView = (title, itemsArr, elementId) => {
                 if (itemsArr.length === 0) return "";
                 let sumPrev = 0, sumCurrent = 0, sumDelta = 0, correctionValue = 0;
+                let positiveValue = 0, negativeValue = 0;
 
                 itemsArr.forEach(item => {
                     sumPrev += item.previousCount;
                     sumCurrent += item.currentCount;
                     sumDelta += item.delta;
+                    let itemVal = item.delta * item.price;
                     if (invoicingMode === 'cumulative') {
-                        if (item.delta > 0 || isPastMonth) correctionValue += item.delta * item.price;
+                        if (item.delta > 0) {
+                            correctionValue += itemVal;
+                            positiveValue += itemVal;
+                        } else if (isPastMonth && item.delta < 0) {
+                            correctionValue += itemVal;
+                            negativeValue += itemVal;
+                        }
                     } else {
-                        correctionValue += item.delta * item.price;
+                        correctionValue += itemVal;
+                        if (item.delta > 0) positiveValue += itemVal;
+                        else negativeValue += itemVal;
                     }
                 });
 
                 const appliedAdjustments = pendingAdjustments.filter(a => a.account === elementId && a.status === 'pending' && a.month < selectedMonth);
+
+                let finalCorrectionValue = correctionValue;
+                appliedAdjustments.forEach(adj => {
+                    finalCorrectionValue += adj.amount;
+                    if (adj.amount > 0) positiveValue += adj.amount;
+                    else negativeValue += adj.amount;
+                });
+
+                let topBreakdownHtml = '';
+                if (invoicingMode === 'cumulative' && isPastMonth && negativeValue < 0) {
+                    topBreakdownHtml = `
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem; background: rgba(0,0,0,0.15); padding: 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
+                                <span style="color: var(--text-muted);">Suma (delta >0):</span>
+                                <span style="color: var(--success); font-weight: 600;">${positiveValue.toFixed(2)} €</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-muted);">Discount (spadki):</span>
+                                <span style="color: #f87171; font-weight: 600;">${negativeValue.toFixed(2)} €</span>
+                            </div>
+                        </div>
+                    `;
+                }
 
                 let htmlString = `
                     <div class="invoice-card active" id="inv-${elementId}">
@@ -1604,22 +1677,23 @@
                             </div>
                         </div>
                         <div class="correction-summary">
-                            <div class="stat-group">
+                            <div class="stat-group" style="flex: 1;">
                                 <span class="stat-label">KWOTA DO WYSTAWIENIA NA NOWEJ FAKTURZE</span>
-                                <span class="stat-delta" style="color:#10b981;">${correctionValue.toFixed(2)} €</span>
+                                <span class="stat-delta" style="color:#10b981;">${finalCorrectionValue.toFixed(2)} €</span>
+                                ${topBreakdownHtml}
                             </div>
                             <div style="display:flex; flex-direction:column; gap:0.5rem;">
                                 <button class="copy-btn" style="background:rgba(16, 185, 129, 0.15); border: 1px solid var(--success); color: #34d399; font-weight: bold;" onclick="copyToQuickBooks('${elementId}')">📗 Kopiuj do QuickBooks</button>
-                                <button class="copy-btn" onclick="copyCorrectionLine(${correctionValue.toFixed(2)})">Kopiuj Jedną Linię (Korekta)</button>
+                                <button class="copy-btn" onclick="copyCorrectionLine(${finalCorrectionValue.toFixed(2)})">Kopiuj Jedną Linię (Korekta)</button>
                                 <button class="copy-btn" style="background:rgba(255,255,255,0.05)" onclick="copyTableData('inv-${elementId}')">Kopiuj Tabelę (Excel)</button>
-                                ${(isPastMonth && Math.abs(correctionValue) > 0.01 && invoicingMode === 'cumulative') ? `
-                                    <button class="copy-btn" style="background:${correctionValue < 0 ? '#059669' : '#b45309'}; border:1px solid ${correctionValue < 0 ? '#10b981' : '#f59e0b'};" onclick="transferToBalance('${elementId}', ${correctionValue}, '${selectedMonth}')">
-                                        ✅ Przenieś ${correctionValue < 0 ? 'ujemną' : 'dodatnią'} sumę korygującą do salda
+                                ${(isPastMonth && Math.abs(finalCorrectionValue) > 0.01 && invoicingMode === 'cumulative') ? `
+                                    <button class="copy-btn" style="background:${finalCorrectionValue < 0 ? '#059669' : '#b45309'}; border:1px solid ${finalCorrectionValue < 0 ? '#10b981' : '#f59e0b'};" onclick="transferToBalance('${elementId}', ${finalCorrectionValue}, '${selectedMonth}')">
+                                        ✅ Przenieś ${finalCorrectionValue < 0 ? 'ujemną' : 'dodatnią'} sumę korygującą do salda
                                     </button>
                                 ` : ''}
                             </div>
                         </div>
-                        ${correctionValue < 0 ? '<div class="negative-warning">⚠️ Suma korekty jest ujemna (-' + Math.abs(correctionValue).toFixed(2) + '€).</div>' : ''}
+                        ${finalCorrectionValue < 0 ? '<div class="negative-warning">⚠️ Suma korekty jest ujemna (-' + Math.abs(finalCorrectionValue).toFixed(2) + '€).</div>' : ''}
                         <table id="table-${elementId}">
                             <thead>
                                 <tr>
@@ -1669,7 +1743,7 @@
 
                 appliedAdjustments.forEach(adj => {
                     const isRabat = adj.amount < 0;
-                    correctionValue += adj.amount;
+                    // value has already been pre-calculated in finalCorrectionValue above
                     htmlString += `
                     <tr style="background: ${isRabat ? 'rgba(16,185,129,0.1)' : 'rgba(251,191,36,0.1)'};">
                         <td style="color:var(--text-muted); font-size:0.8rem;">${rowNum++}</td>
@@ -1682,12 +1756,27 @@
                     `;
                 });
 
+                let breakdownHtml = '';
+                if (invoicingMode === 'cumulative' && isPastMonth && negativeValue < 0) {
+                    breakdownHtml = `
+                    <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
+                        <td colspan="6" style="text-align: right; color: var(--success);">Suma delta >0:</td>
+                        <td style="text-align: right; color: var(--success);">${positiveValue.toFixed(2)} €</td>
+                    </tr>
+                    <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
+                        <td colspan="6" style="text-align: right; color: #f87171;">Discount:</td>
+                        <td style="text-align: right; color: #f87171;">${negativeValue.toFixed(2)} €</td>
+                    </tr>
+                    `;
+                }
+
                 htmlString += `
+                    ${breakdownHtml}
                     <tr style="background: rgba(255,255,255,0.05); font-weight: 800;">
                         <td colspan="2" style="color:var(--accent)">SUMA (TOTAL):</td>
                         <td>${sumPrev}</td><td>${sumCurrent}</td>
                         <td style="color:${sumDelta >= 0 ? 'var(--success)' : '#f87171'}">${sumDelta > 0 ? '+' : ''}${sumDelta}</td>
-                        <td>-</td><td style="text-align: right; color:#fbbf24;">${correctionValue.toFixed(2)} €</td>
+                        <td>-</td><td style="text-align: right; color:#fbbf24;">${finalCorrectionValue.toFixed(2)} €</td>
                     </tr></tbody></table></div>
                 `;
                 return htmlString;
@@ -2078,41 +2167,29 @@
             let tsvText = "";
             
             items.forEach(item => {
-                let shouldInclude = false;
-                if (invoicingMode === 'cumulative') {
-                    // W trybie AUTOMAT: tylko wzrosty (delta > 0) lub wszystko jeśli miesiąc już się skończył
-                    if (item.delta > 0 || isPastMonth) shouldInclude = true;
-                } else {
-                    // W trybie KONTROLA: kopiujemy wszystko co nie jest zerem (1:1 z pliku)
-                    if (item.delta !== 0) shouldInclude = true;
-                }
-
-                if (shouldInclude) {
-                    // Format dla QBO - pomijamy kolumnę 1 (#), bo przycisk wklejania zaczyna od kolumny Product/service.
-                    // Dodajemy wyliczoną kwotę 'Amount' na końcu, aby QBO nie nadpisywało stawki z bazy produktów po wciśnięciu Tab.
-                    // Używamy kropki, ponieważ QBO traktuje przecinek jako separator tysięcy.
-                    
+                let itemVal = item.delta * item.price;
+                if (item.delta > 0) {
+                    // Kopiujemy tylko pozycje na plus
                     let title = item.title.replace(/\t/g, ' ').replace(/\n/g, ' ');
                     let rateStr = item.price.toFixed(2);
-                    let amountStr = (item.delta * item.price).toFixed(2);
-                    
+                    let amountStr = itemVal.toFixed(2);
                     let rowTsv = `${title}\t\t${item.delta}\t${rateStr}\t${amountStr}`;
                     tsvText += rowTsv + "\n";
                 }
             });
 
             const appliedAdjustments = pendingAdjustments.filter(a => a.account === accountKey && a.status === 'pending' && a.month < selectedMonth);
-            
             appliedAdjustments.forEach(adj => {
-                const isRabat = adj.amount < 0;
-                let title = `Korekta / ${isRabat ? 'Rabat' : 'Dopłata'} za: ${adj.month}`;
-                let qty = isRabat ? -1 : 1;
-                let rateStr = Math.abs(adj.amount).toFixed(2);
-                let amountStr = adj.amount.toFixed(2);
-                let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
-                tsvText += rowTsv + "\n";
+                if (adj.amount > 0) {
+                    // Oczekujące dopłaty zostawiamy jako osobną pozycję na plus
+                    let title = `Korekta / Dopłata za: ${adj.month}`;
+                    let qty = 1;
+                    let rateStr = adj.amount.toFixed(2);
+                    let amountStr = adj.amount.toFixed(2);
+                    let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
+                    tsvText += rowTsv + "\n";
+                }
             });
-
             if (!tsvText) {
                 alert("Brak pozycji do skopiowania (wszystkie wartości wynoszą 0 lub są pominiętymi spadkami).");
                 return;

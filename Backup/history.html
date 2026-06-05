@@ -204,6 +204,23 @@
             display: none;
             z-index: 2000;
         }
+
+        .summary-toggle {
+            padding: 0.8rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px dashed var(--accent);
+            border-radius: 8px;
+            color: var(--accent);
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .summary-toggle:hover { background: rgba(16, 185, 129, 0.2); }
+        .monthly-summary-table { display: none; }
+        .monthly-summary-table.active { display: block; animation: fadeIn 0.3s ease; }
     </style>
 </head>
 
@@ -352,12 +369,16 @@
                 // Sum stat
                 let totalLeads = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + it.delta, 0), 0);
                 let totalEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0), 0);
+                
+                // NOWOŚĆ: Podsumowanie Produktów
+                const summaryHtml = renderMonthlySummary(logs, type);
 
                 let html = `
                     <div class="summary-card">
                         <div><div class="stat-label">Lidów w tym miesiącu</div><div class="stat-value">${totalLeads}</div></div>
                         <div><div class="stat-label">Wartość całkowita</div><div class="stat-value" style="color:var(--accent)">${totalEuro.toFixed(2)} €</div></div>
                     </div>
+                    ${summaryHtml}
                     <table class="history-table">
                         <thead>
                             <tr>
@@ -429,6 +450,71 @@
                 html += `</tbody></table>`;
                 container.innerHTML = html;
             });
+        }
+
+        function renderMonthlySummary(logs, type) {
+            if (logs.length === 0) return '';
+
+            const aggregated = {};
+            logs.forEach(log => {
+                log.items.forEach(it => {
+                    if (it.delta === 0) return;
+                    
+                    if (!aggregated[it.id]) {
+                        aggregated[it.id] = {
+                            id: it.id,
+                            sku: it.sku,
+                            title: it.title,
+                            totalDelta: 0,
+                            totalEuro: 0,
+                            price: it.price
+                        };
+                    }
+                    
+                    aggregated[it.id].totalDelta += it.delta;
+                    aggregated[it.id].totalEuro += (it.delta * it.price);
+                    
+                    // Preferujemy nazwy/sku które nie są "UNKNOWN_SKU"
+                    if (aggregated[it.id].sku === "UNKNOWN_SKU" && it.sku !== "UNKNOWN_SKU") {
+                        aggregated[it.id].sku = it.sku;
+                        aggregated[it.id].title = it.title;
+                    }
+                });
+            });
+
+            const sorted = Object.values(aggregated).sort((a, b) => b.totalDelta - a.totalDelta);
+            if (sorted.length === 0) return '';
+
+            let html = `
+                <div class="summary-toggle" onclick="this.nextElementSibling.classList.toggle('active')">
+                    📊 Pokaż Podsumowanie Produktów (Miesiąc)
+                </div>
+                <div class="monthly-summary-table">
+                    <table class="detail-table" style="background: rgba(0,0,0,0.2); border-radius: 8px; margin-bottom: 2rem;">
+                        <thead>
+                            <tr>
+                                <th>Produkt / SKU</th>
+                                <th>ID</th>
+                                <th style="text-align:right">Suma Leadów</th>
+                                <th style="text-align:right">Suma Wartości</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            sorted.forEach(prod => {
+                html += `
+                    <tr>
+                        <td style="font-size:0.8rem;">${prod.title}</td>
+                        <td style="font-size:0.7rem; color:var(--text-muted)">#${prod.id}</td>
+                        <td style="text-align:right; font-weight:700;">${prod.totalDelta}</td>
+                        <td style="text-align:right; font-weight:700; color:var(--accent)">${prod.totalEuro.toFixed(2)} €</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table></div>`;
+            return html;
         }
 
         window.viewDetails = function(idx) {
