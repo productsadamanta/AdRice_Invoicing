@@ -27,7 +27,7 @@ Twój projekt jest objęty systemem kontroli wersji Git. To najpotężniejsze na
    * Jeśli masz zmodyfikowane pliki, które działają poprawnie, zatwierdź je:
      ```powershell
      git add .
-     git commit -m "Zapis stabilnej wersji przed aktualizacja - YYYY-MM-DD"
+     git commit -m "Aktualizacja historii faktur DD.MM.YYYY"
      ```
 2. Dzięki temu, jeśli nowa wersja nie będzie działać, będziesz mógł w 3 sekundy przywrócić ostatnią działającą wersję za pomocą komendy:
    ```powershell
