@@ -689,12 +689,12 @@
             </div>
 
             <div class="file-input-group">
-                <label>4. Amsped Perf: Find (DE, LT, CZ, SK, LV)</label>
+                <label>4. Amsped Perf: Find (DE, LT, CZ, SK, LV) → TrendiSupply</label>
                 <input type="file" id="fileFind" accept=".csv">
             </div>
 
             <div class="file-input-group">
-                <label>5. Amsped Perf: Alcance (PT, ES)</label>
+                <label>5. Amsped Perf: Alcance (PT, ES) → SmartMediaSolving</label>
                 <input type="file" id="fileAlcance" accept=".csv">
             </div>
 
@@ -703,6 +703,7 @@
             <div class="file-input-group" style="border-top: 1px solid var(--glass-border); padding-top: 1.5rem; display: flex; gap: 10px; margin-top: 1rem;">
                 <button onclick="seedFromCSV()" class="generate-btn" style="background: #475569; margin-top: 0; font-size: 0.8rem; padding: 0.5rem;" title="Zasilanie bazy plikiem CSV (ID;Count)">Zasil Bazę (CSV)</button>
                 <button onclick="repairDBFromManualCounts()" class="generate-btn" style="background: #92400e; margin-top: 0; font-size: 0.8rem; padding: 0.5rem;" title="Użyj do naprawy błędnych stanów na podstawie Twoich ręcznych wyliczeń (Wklej tekst)">Korekta Stanu (Manual)</button>
+                <button onclick="migrateFindAlcanceToPerCountry()" class="generate-btn" style="background: #7c3aed; margin-top: 0; font-size: 0.8rem; padding: 0.5rem;" title="Jednorazowa migracja historycznych danych find/alcance na klucze per-kraj (DE/LT/CZ/SK/LV/PT/ES)">🔄 Migruj find→per-kraj</button>
             </div>
         </div>
 
@@ -905,6 +906,70 @@
         // Globalny stan oczekujących rabatów/sald (Carry-over)
         let pendingAdjustments = JSON.parse(localStorage.getItem('adrice_pending_adjustments')) || [];
 
+        window.migrateFindAlcanceToPerCountry = function() {
+            if (Object.keys(mappings.offerIdToData).length === 0) {
+                alert("Mappingi nie są załadowane.\n\nWgraj najpierw pliki AdRice (aktywne + nieaktywne) oraz Amsped Lists (Find + Alcance), wygeneruj faktury, a dopiero potem uruchom migrację.");
+                return;
+            }
+
+            const OLD_FIND_COUNTRIES = ['de','lt','cz','sk','lv'];
+            const OLD_ALCANCE_COUNTRIES = ['pt','es'];
+            const ALL_NEW_KEYS = [...OLD_FIND_COUNTRIES, ...OLD_ALCANCE_COUNTRIES];
+
+            let report = [];
+            let totalMigrated = 0;
+
+            Object.keys(invoicingDB).forEach(month => {
+                const monthData = invoicingDB[month];
+                let monthMigrated = 0;
+
+                ALL_NEW_KEYS.forEach(k => { if (!monthData[k]) monthData[k] = {}; });
+
+                const findSource = monthData['_legacy_find'] || monthData['find'];
+                if (findSource) {
+                    Object.entries(findSource).forEach(([offerId, count]) => {
+                        if (count <= 0) return;
+                        const adRiceInfo = mappings.offerIdToData[offerId];
+                        if (!adRiceInfo) return;
+                        const countryCode = getCountryCode(adRiceInfo.name, "Find", offerId).toLowerCase();
+                        if (!OLD_FIND_COUNTRIES.includes(countryCode)) return;
+                        if (!monthData[countryCode][offerId]) {
+                            monthData[countryCode][offerId] = count;
+                            monthMigrated++;
+                        }
+                    });
+                }
+
+                const alcanceSource = monthData['_legacy_alcance'] || monthData['alcance'];
+                if (alcanceSource) {
+                    Object.entries(alcanceSource).forEach(([offerId, count]) => {
+                        if (count <= 0) return;
+                        const adRiceInfo = mappings.offerIdToData[offerId];
+                        if (!adRiceInfo) return;
+                        const countryCode = getCountryCode(adRiceInfo.name, "Alcance", offerId).toLowerCase();
+                        if (!OLD_ALCANCE_COUNTRIES.includes(countryCode)) return;
+                        if (!monthData[countryCode][offerId]) {
+                            monthData[countryCode][offerId] = count;
+                            monthMigrated++;
+                        }
+                    });
+                }
+
+                if (monthMigrated > 0) {
+                    report.push(`${month}: ${monthMigrated} pozycji`);
+                    totalMigrated += monthMigrated;
+                }
+            });
+
+            if (totalMigrated === 0) {
+                alert("Brak danych do migracji (wszystko już zmigrowane lub brak danych w find/alcance).");
+                return;
+            }
+
+            localStorage.setItem('adrice_invoicing_db_v2', JSON.stringify(invoicingDB));
+            alert(`Migracja zakończona!\n\nZmigrowano ${totalMigrated} pozycji:\n${report.join('\n')}\n\nDane find/alcance zostały zachowane jako backup.`);
+        };
+
         function saveAdjustments() {
             localStorage.setItem('adrice_pending_adjustments', JSON.stringify(pendingAdjustments));
             renderSidebarBalances();
@@ -945,8 +1010,12 @@
 
             let html = '<table class="balance-table"><tbody>';
             // Agregacja po koncie
-            const accounts = { pl:0, hu:0, find:0, alcance:0 };
-            active.forEach(a => accounts[a.account] += a.amount);
+            const accounts = { pl:0, de:0, lt:0, cz:0, sk:0, lv:0, hu:0, pt:0, es:0 };
+            active.forEach(a => {
+                if (Object.prototype.hasOwnProperty.call(accounts, a.account)) {
+                    accounts[a.account] += a.amount;
+                }
+            });
 
             Object.keys(accounts).forEach(acc => {
                 if (accounts[acc] !== 0) {
@@ -959,7 +1028,44 @@
             container.innerHTML = html;
         }
 
-        // Inicjalizacja dropdowna miesięcy (Od Grudnia 2026 wstecz do Marca 2026)
+        // Migracja bazy danych ze starej struktury (find/alcance) do nowej (per-kraj)
+        function migrateDBIfNeeded() {
+            if (invoicingDB['_migrated_v3']) return;
+
+            let migrationDone = false;
+            Object.keys(invoicingDB).forEach(month => {
+                if (!/^\d{4}-\d{2}$/.test(month)) return;
+                const mdb = invoicingDB[month];
+                if (mdb.find !== undefined || mdb.alcance !== undefined) {
+                    mdb._legacy_find = mdb.find || {};
+                    mdb._legacy_alcance = mdb.alcance || {};
+                    delete mdb.find;
+                    delete mdb.alcance;
+                    if (!mdb.de)  mdb.de  = {};
+                    if (!mdb.lt)  mdb.lt  = {};
+                    if (!mdb.cz)  mdb.cz  = {};
+                    if (!mdb.sk)  mdb.sk  = {};
+                    if (!mdb.lv)  mdb.lv  = {};
+                    if (!mdb.pt)  mdb.pt  = {};
+                    if (!mdb.es)  mdb.es  = {};
+                    migrationDone = true;
+                }
+            });
+
+            invoicingDB['_migrated_v3'] = true;
+            saveInvoicingDB();
+
+            if (migrationDone) {
+                setTimeout(() => {
+                    let notif = document.getElementById('notification');
+                    notif.innerText = '✅ Baza zaktualizowana do v3 (podział wg krajów). Stare dane Find/Alcance zarchiwizowane jako _legacy. Użyj "Korekta Stanu (Manual)" aby ustawić stan per-kraj.';
+                    notif.classList.add('show');
+                    setTimeout(() => notif.classList.remove('show'), 8000);
+                }, 600);
+            }
+        }
+
+        // Inicjalizacja dropdowna miesięcy (Od Grudnia następnego roku wstecz do Marca 2026)
         function initMonthSelector() {
             const select = document.getElementById('activeMonth');
             const now = new Date();
@@ -967,8 +1073,8 @@
             // i w strefie UTC+2 daje klucz o miesiąc za mały, np. kwiecień → '2026-03')
             const currentVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-            // Stały zakres: od Grudnia 2026 wstecz do Marca 2026 (początek projektu)
-            const endYear = 2026;
+            // Zakres: od Grudnia następnego roku wstecz do Marca 2026 (początek projektu)
+            const endYear = now.getFullYear() + 1;
             const endMonth = 11; // Grudzień
             const startYear = 2026;
             const startMonth = 2; // Marzec
@@ -1033,8 +1139,14 @@
                 reader.onload = event => {
                     try {
                         const imported = JSON.parse(event.target.result);
+                        if (typeof imported !== 'object' || imported === null || Array.isArray(imported) ||
+                            !Object.keys(imported).some(k => /^\d{4}-\d{2}$/.test(k))) {
+                            alert("Błąd: Plik nie wygląda jak prawidłowy backup AdRice (brak miesięcy YYYY-MM). Baza nie została nadpisana.");
+                            return;
+                        }
                         invoicingDB = imported;
                         saveInvoicingDB();
+                        migrateDBIfNeeded();
                         alert("Baza zaimportowana pomyślnie!");
                     } catch (err) { alert("Błąd importu pliku!"); }
                 };
@@ -1049,9 +1161,9 @@
             
             // FIX: Pytamy użytkownika do którego konta przypisać te dane, 
             // aby uniknąć zanieczyszczenia wszystkich 4 kont tym samym ID.
-            const targetAccount = prompt("Do którego konta przypisać dane? (wpisz: pl, hu, find lub alcance)", "pl");
-            if (!targetAccount || !['pl', 'hu', 'find', 'alcance'].includes(targetAccount.toLowerCase())) {
-                alert("Nieprawidłowy klucz konta. Przerwano.");
+            const targetAccount = prompt("Do którego kraju przypisać dane?\n(pl, hu, de, lt, cz, sk, lv, pt, es)", "pl");
+            if (!targetAccount || !['pl', 'hu', 'de', 'lt', 'cz', 'sk', 'lv', 'pt', 'es'].includes(targetAccount.toLowerCase())) {
+                alert("Nieprawidłowy klucz kraju. Przerwano.");
                 return;
             }
 
@@ -1071,7 +1183,7 @@
                     // Używamy tymczasowego obiektu, by sumować zduplikowane ID z pliku
                     let tempSums = {};
 
-                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
 
                     lines.forEach(line => {
                         let parts = line.split(/[;,]/);
@@ -1106,7 +1218,7 @@
          */
         window.repairDBFromManualCounts = function() {
             const currentMonth = document.getElementById('activeMonth').value;
-            const targetAccount = prompt("Wybierz konto do NAPRAWY (pl, hu, find, alcance):", "pl");
+            const targetAccount = prompt("Wybierz kraj do NAPRAWY (pl, hu, de, lt, cz, sk, lv, pt, es):", "pl");
             if(!targetAccount) return;
 
             const data = prompt("Wklej dane w formacie ID;LICZBA (jedna oferta na linię):");
@@ -1116,7 +1228,7 @@
             let repaired = 0;
             let tempSums = {};
             
-            if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+            if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
             
             lines.forEach(line => {
                 let parts = line.split(/[;\t,]/); // Obsługa średnika, tabulatora (Excel) i przecinka
@@ -1305,18 +1417,23 @@
                 await processList(fileListsFind);
                 await processList(fileListsAlcance);
 
-                // Arrays for holding processed invoices
-                let invoicePL = []; // Uncapped PL
-                let invoiceHU = []; // Uncapped HU
-                let invoiceFind = []; // Find All
-                let invoiceAlcance = []; // Alcance All
+                // Arrays for holding processed invoices (per country = per invoice)
+                let invoicePL = []; // TrendiSupply — Poland
+                let invoiceDE = []; // TrendiSupply — Germany
+                let invoiceLT = []; // TrendiSupply — Lithuania
+                let invoiceCZ = []; // TrendiSupply — Czech Republic
+                let invoiceSK = []; // TrendiSupply — Slovakia
+                let invoiceLV = []; // TrendiSupply — Latvia
+                let invoiceHU = []; // TradeExpress — Hungary
+                let invoicePT = []; // SmartMediaSolving — Portugal
+                let invoiceES = []; // SmartMediaSolving — Spain
 
                 // Process Function logic for Performance files
                 const processAccount = async (file, accountName) => {
                     if (!file) return [];
                     let data = await parseCSVFile(file, { delimiter: ";" });
                     let currentMonth = document.getElementById('activeMonth').value;
-                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, find: {}, alcance: {} };
+                    if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
 
                     // KROK 1: Agregacja po (offerId + invoiceType)
                     // FIX: Gdy ta sama oferta pojawia się w wielu wierszach Amsped (np. kampania główna
@@ -1346,10 +1463,8 @@
                             let formattedOfferId = offerId === "NO_ID" ? "NO_ID" : `#${offerId}`;
                             let fullCountry = getFullCountryName(country);
 
-                            // Każda faktura (PL, HU, FIND, ALCANCE) ma swoją szufladę
-                            let invoiceType = country === "PL" ? "pl" :
-                                country === "HU" ? "hu" :
-                                    accountName === "Find" ? "find" : "alcance";
+                            // Każda faktura ma swoją szufladę per kraj
+                            let invoiceType = country.toLowerCase();
 
                             let key = `${offerId}_${invoiceType}`;
                             if (!aggregated[key]) {
@@ -1369,10 +1484,8 @@
 
 
                     // KROK 1.5: Dodaj oferty, które są w bazie (alreadyPaid > 0), ale całkowicie zniknęły z pliku Amsped (spadki do 0)
-                    let dbAccount = invoicingDB[currentMonth][accountName === "Find" ? "find" : accountName === "Alcance" ? "alcance" : "pl"]; // Tymczasowo, dla PL/HU sprawdzimy niżej
-                    
-                    // Dla Uncapped musimy sprawdzić zarówno PL jak i HU
-                    let accountsToCheck = accountName === "Uncapped" ? ["pl", "hu"] : [accountName === "Find" ? "find" : "alcance"];
+                    let accountsToCheck = accountName === "Uncapped" ? ["pl", "hu"] :
+                        accountName === "Find" ? ["de", "lt", "cz", "sk", "lv"] : ["pt", "es"];
                     
                     accountsToCheck.forEach(accKey => {
                         let dbItems = invoicingDB[currentMonth][accKey] || {};
@@ -1383,7 +1496,7 @@
                                 let adRiceInfo = mappings.offerIdToData[offerId] || { name: "Brak w mapowaniu (usunięto z Amsped)", payout: "0.00" };
                                 let offerNameCleaned = offerId === "NO_ID" ? "Nieznana Oferta" : cleanupAdRiceName(adRiceInfo.name);
                                 let formattedOfferId = offerId === "NO_ID" ? "NO_ID" : `#${offerId}`;
-                                let country = accKey === "pl" ? "PL" : accKey === "hu" ? "HU" : accountName === "Find" ? "Find" : "Alcance"; // Uproszczenie kraju
+                                let country = accKey.toUpperCase();
                                 
                                 aggregated[key] = {
                                     id: offerId,
@@ -1437,58 +1550,66 @@
                 };
 
                 // Exec processing
+                const countryArrayMap = { pl: invoicePL, hu: invoiceHU, de: invoiceDE, lt: invoiceLT, cz: invoiceCZ, sk: invoiceSK, lv: invoiceLV, pt: invoicePT, es: invoiceES };
+
                 if (fileUncapped) {
                     let uncappedData = await processAccount(fileUncapped, "Uncapped");
-                    // Rozdziel na PL i HU
                     uncappedData.forEach(item => {
-                        if (item.country === "HU") invoiceHU.push(item);
-                        else invoicePL.push(item);
+                        const arr = countryArrayMap[item.type];
+                        if (arr) arr.push(item);
                     });
                 }
 
                 if (fileFind) {
-                    invoiceFind = await processAccount(fileFind, "Find");
+                    let findData = await processAccount(fileFind, "Find");
+                    findData.forEach(item => {
+                        const arr = countryArrayMap[item.type];
+                        if (arr) arr.push(item);
+                    });
                 }
+
                 if (fileAlcance) {
-                    invoiceAlcance = await processAccount(fileAlcance, "Alcance");
+                    let alcanceData = await processAccount(fileAlcance, "Alcance");
+                    alcanceData.forEach(item => {
+                        const arr = countryArrayMap[item.type];
+                        if (arr) arr.push(item);
+                    });
                 }
 
                 // Sortowanie wszystkich zestawień w zależności od trybu pracy
+                const allInvoiceArrays = [invoicePL, invoiceDE, invoiceLT, invoiceCZ, invoiceSK, invoiceLV, invoiceHU, invoicePT, invoiceES];
                 let currentSortMode = document.getElementById('invoicingMode').value;
                 if (currentSortMode === 'range') {
-                    // Tryb KONTROLA: sortujemy malejąco według ilości leadów na fakturę (delta)
-                    invoicePL.sort((a, b) => b.delta - a.delta);
-                    invoiceHU.sort((a, b) => b.delta - a.delta);
-                    invoiceFind.sort((a, b) => b.delta - a.delta);
-                    invoiceAlcance.sort((a, b) => b.delta - a.delta);
+                    allInvoiceArrays.forEach(arr => arr.sort((a, b) => b.delta - a.delta));
                 } else {
-                    // Tryb AUTOMAT: najpierw oferty z delta > 0 (na górę), a wewnątrz grup według ilości leadów (currentCount)
                     const autoSort = (a, b) => {
                         const aHasIncrease = a.delta > 0 ? 1 : 0;
                         const bHasIncrease = b.delta > 0 ? 1 : 0;
                         if (aHasIncrease !== bHasIncrease) return bHasIncrease - aHasIncrease;
                         return b.currentCount - a.currentCount;
                     };
-                    invoicePL.sort(autoSort);
-                    invoiceHU.sort(autoSort);
-                    invoiceFind.sort(autoSort);
-                    invoiceAlcance.sort(autoSort);
+                    allInvoiceArrays.forEach(arr => arr.sort(autoSort));
                 }
 
                 // Render UI
                 const container = document.getElementById('resultsArea');
                 container.innerHTML = ""; // clear layout
 
-                if ([invoicePL, invoiceHU, invoiceFind, invoiceAlcance].every(arr => arr.length === 0)) {
+                if (allInvoiceArrays.every(arr => arr.length === 0)) {
                     container.innerHTML = `<div class="panel" style="text-align:center"><p>Brak zamówień z Positivi > 0</p></div>`;
                     return;
                 }
 
                 // Cache results for confirmation button
                 lastGeneratedResults.pl = invoicePL;
+                lastGeneratedResults.de = invoiceDE;
+                lastGeneratedResults.lt = invoiceLT;
+                lastGeneratedResults.cz = invoiceCZ;
+                lastGeneratedResults.sk = invoiceSK;
+                lastGeneratedResults.lv = invoiceLV;
                 lastGeneratedResults.hu = invoiceHU;
-                lastGeneratedResults.find = invoiceFind;
-                lastGeneratedResults.alcance = invoiceAlcance;
+                lastGeneratedResults.pt = invoicePT;
+                lastGeneratedResults.es = invoiceES;
 
                 renderInvoicesFromCache();
 
@@ -1502,18 +1623,18 @@
         });
 
         // Funkcja generująca tabelkę podsumowującą na samej górze
-        window.renderSummaryTable = function(invoicePL, invoiceHU, invoiceFind, invoiceAlcance) {
+        window.renderSummaryTable = function() {
             const invoicingMode = document.getElementById('invoicingMode').value;
             const selectedMonth = document.getElementById('activeMonth').value;
             const now = new Date();
             const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
             const isPastMonth = (selectedMonth < currentMonthKey);
 
+            const r = lastGeneratedResults;
             const companies = [
-                { name: "TrendiSupply", id: "pl", data: invoicePL },
-                { name: "TradeExpress", id: "hu", data: invoiceHU },
-                { name: "EuroFlex", id: "find", data: invoiceFind },
-                { name: "SmartMedia", id: "alcance", data: invoiceAlcance }
+                { name: "TrendiSupply", ids: ["pl","de","lt","cz","sk","lv"], data: [...(r.pl||[]), ...(r.de||[]), ...(r.lt||[]), ...(r.cz||[]), ...(r.sk||[]), ...(r.lv||[])] },
+                { name: "TradeExpress", ids: ["hu"], data: r.hu || [] },
+                { name: "SmartMediaSolving", ids: ["pt","es"], data: [...(r.pt||[]), ...(r.es||[])] }
             ];
 
             let summaryCSVRows = [];
@@ -1549,11 +1670,13 @@
                     }
                 });
 
-                // Dodaj korekty/rabaty z salda
-                const appliedAdjustments = pendingAdjustments.filter(a => a.account === company.id && a.status === 'pending' && a.month < selectedMonth);
-                appliedAdjustments.forEach(adj => {
-                    totalValue += adj.amount;
-                });
+                // Dodaj korekty/rabaty z salda (tylko w trybie automat)
+                if (invoicingMode === 'cumulative') {
+                    const appliedAdjustments = pendingAdjustments.filter(a => company.ids.includes(a.account) && a.status === 'pending' && a.month < selectedMonth);
+                    appliedAdjustments.forEach(adj => {
+                        totalValue += adj.amount;
+                    });
+                }
 
                 const formattedValue = `€${totalValue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 
@@ -1595,17 +1718,23 @@
             container.innerHTML = "";
 
             const invoicePL = lastGeneratedResults.pl || [];
+            const invoiceDE = lastGeneratedResults.de || [];
+            const invoiceLT = lastGeneratedResults.lt || [];
+            const invoiceCZ = lastGeneratedResults.cz || [];
+            const invoiceSK = lastGeneratedResults.sk || [];
+            const invoiceLV = lastGeneratedResults.lv || [];
             const invoiceHU = lastGeneratedResults.hu || [];
-            const invoiceFind = lastGeneratedResults.find || [];
-            const invoiceAlcance = lastGeneratedResults.alcance || [];
+            const invoicePT = lastGeneratedResults.pt || [];
+            const invoiceES = lastGeneratedResults.es || [];
 
-            if ([invoicePL, invoiceHU, invoiceFind, invoiceAlcance].every(arr => arr.length === 0)) {
+            const allInvoiceArrays = [invoicePL, invoiceDE, invoiceLT, invoiceCZ, invoiceSK, invoiceLV, invoiceHU, invoicePT, invoiceES];
+            if (allInvoiceArrays.every(arr => arr.length === 0)) {
                 container.innerHTML = `<div class="panel" style="text-align:center"><p>Brak zamówień do wyświetlenia</p></div>`;
                 return;
             }
 
             // Dodaj tabelkę podsumowującą na górze
-            container.innerHTML = renderSummaryTable(invoicePL, invoiceHU, invoiceFind, invoiceAlcance);
+            container.innerHTML = renderSummaryTable();
 
             const invoicingMode = document.getElementById('invoicingMode').value;
             const selectedMonth = document.getElementById('activeMonth').value;
@@ -1638,7 +1767,9 @@
                     }
                 });
 
-                const appliedAdjustments = pendingAdjustments.filter(a => a.account === elementId && a.status === 'pending' && a.month < selectedMonth);
+                const appliedAdjustments = invoicingMode === 'cumulative'
+                    ? pendingAdjustments.filter(a => a.account === elementId && a.status === 'pending' && a.month < selectedMonth)
+                    : [];
 
                 let finalCorrectionValue = correctionValue;
                 appliedAdjustments.forEach(adj => {
@@ -1804,10 +1935,15 @@
                 return htmlString;
             };
 
-            container.innerHTML += createInvoiceView("TrendiSupply (Uncapped)", invoicePL, "pl");
-            container.innerHTML += createInvoiceView("TradeExpress (Uncapped)", invoiceHU, "hu");
-            container.innerHTML += createInvoiceView("EuroFlex (Find)", invoiceFind, "find");
-            container.innerHTML += createInvoiceView("SmartMediaSolving(Alcance)", invoiceAlcance, "alcance");
+            container.innerHTML += createInvoiceView("TrendiSupply — Poland", invoicePL, "pl");
+            container.innerHTML += createInvoiceView("TrendiSupply — Germany", invoiceDE, "de");
+            container.innerHTML += createInvoiceView("TrendiSupply — Lithuania", invoiceLT, "lt");
+            container.innerHTML += createInvoiceView("TrendiSupply — Czech Republic", invoiceCZ, "cz");
+            container.innerHTML += createInvoiceView("TrendiSupply — Slovakia", invoiceSK, "sk");
+            container.innerHTML += createInvoiceView("TrendiSupply — Latvia", invoiceLV, "lv");
+            container.innerHTML += createInvoiceView("TradeExpress — Hungary", invoiceHU, "hu");
+            container.innerHTML += createInvoiceView("SmartMediaSolving — Portugal", invoicePT, "pt");
+            container.innerHTML += createInvoiceView("SmartMediaSolving — Spain", invoiceES, "es");
         };
 
         // Funkcja do rozwijania i zwijania tabeli pozycji na fakturze
@@ -2018,7 +2154,7 @@
         };
 
         // Globalny cache wyników do zatwierdzania
-        let lastGeneratedResults = { pl: [], hu: [], find: [], alcance: [] };
+        let lastGeneratedResults = { pl: [], hu: [], de: [], lt: [], cz: [], sk: [], lv: [], pt: [], es: [] };
 
         // NOWOŚĆ: Funkcja przenosząca sumę korygującą (dodatnią lub ujemną) do salda
         window.transferToBalance = function(account, amount, month) {
@@ -2050,7 +2186,7 @@
             saveAdjustments();
 
             // 2. Log do historii (bez nadpisywania głównego licznika w bazie, bo robimy to dynamicznie)
-            if (!invoicingDB[month]) invoicingDB[month] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [] };
+            if (!invoicingDB[month]) invoicingDB[month] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
             if(!invoicingDB[month].logs) invoicingDB[month].logs = [];
             
             invoicingDB[month].logs.push({
@@ -2106,7 +2242,7 @@
             }
 
             if (!invoicingDB[selectedMonth]) {
-                invoicingDB[selectedMonth] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [] };
+                invoicingDB[selectedMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
             }
             if(!invoicingDB[selectedMonth].logs) invoicingDB[selectedMonth].logs = [];
 
@@ -2176,7 +2312,19 @@
 
             rows.forEach(row => {
                 let cols = Array.from(row.querySelectorAll("td"));
-                let rowData = cols.map(c => c.innerText.trim()).join("\t");
+                let rowData = cols.map((c, i) => {
+                    let text = c.innerText.trim();
+                    if (i === 4) {
+                        // NOWA FAKTURA (delta) - tylko liczba całkowita, bez + i bez ⚠️ SPADEK
+                        let match = text.match(/-?\d+/);
+                        return match ? match[0] : text;
+                    }
+                    if (i === 5 || i === 6) {
+                        // Cena/Szt i Wartość - zamień kropkę na przecinek, usuń " €"
+                        return text.replace(' €', '').replace('.', ',');
+                    }
+                    return text;
+                }).join("\t");
                 tsvText += rowData + "\n";
             });
 
@@ -2268,16 +2416,9 @@
             });
         });
 
-        window.copyToClipboard = function (text) {
-            navigator.clipboard.writeText(text).then(() => {
-                let notif = document.getElementById('notification');
-                notif.innerText = "Skopiowano nazwę produktu!";
-                notif.classList.add('show');
-                setTimeout(() => { notif.classList.remove('show'); }, 2000);
-            });
-        };
-
         // --- START SYSTEMU (Na samym końcu po definicji wszystkich funkcji) ---
+
+        migrateDBIfNeeded();
 
         // Wykrywanie pustej bazy (np. po wyczyszczeniu ciasteczek) — pokaż ostrzeżenie
         (function checkEmptyDB() {

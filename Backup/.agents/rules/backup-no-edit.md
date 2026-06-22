@@ -1,6 +1,5 @@
 ---
 trigger: always_on
-glob:
-description:
 ---
 
+Nigdy nie wolno Ci edytować plików w folderach: Backup; ArchiveBackup

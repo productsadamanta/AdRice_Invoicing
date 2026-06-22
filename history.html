@@ -242,16 +242,14 @@
     </div>
 
     <div class="tabs-nav">
-        <button class="tab-btn active" onclick="switchTab('PL')">TrendiSupply (PL)</button>
+        <button class="tab-btn active" onclick="switchTab('TRENDI')">TrendiSupply (PL/DE/LT/CZ/SK/LV)</button>
         <button class="tab-btn" onclick="switchTab('HU')">TradeExpress (HU)</button>
-        <button class="tab-btn" onclick="switchTab('FIND')">EuroFlex (Find)</button>
-        <button class="tab-btn" onclick="switchTab('ALCANCE')">SmartMediaSolving (Alcance)</button>
+        <button class="tab-btn" onclick="switchTab('SMART')">SmartMediaSolving (PT/ES)</button>
     </div>
 
-    <div id="contentPL" class="tab-content active"></div>
+    <div id="contentTRENDI" class="tab-content active"></div>
     <div id="contentHU" class="tab-content"></div>
-    <div id="contentFIND" class="tab-content"></div>
-    <div id="contentALCANCE" class="tab-content"></div>
+    <div id="contentSMART" class="tab-content"></div>
 
     <!-- Modal for Detailed View -->
     <div id="detailsModal" class="modal-overlay">
@@ -270,7 +268,7 @@
 
     <script>
         let invoicingDB = JSON.parse(localStorage.getItem('adrice_invoicing_db_v2')) || {};
-        let currentTab = 'PL';
+        let currentTab = 'TRENDI';
 
         function saveDB() {
             localStorage.setItem('adrice_invoicing_db_v2', JSON.stringify(invoicingDB));
@@ -306,9 +304,14 @@
                 reader.onload = event => {
                     try {
                         const imported = JSON.parse(event.target.result);
+                        if (typeof imported !== 'object' || imported === null || Array.isArray(imported) ||
+                            !Object.keys(imported).some(k => /^\d{4}-\d{2}$/.test(k))) {
+                            alert("Błąd: Plik nie wygląda jak prawidłowy backup AdRice (brak miesięcy YYYY-MM). Baza nie została nadpisana.");
+                            return;
+                        }
                         invoicingDB = imported;
                         saveDB();
-                        alert(`✅ Baza przywrócona! Znaleziono miesięcy: ${Object.keys(imported).length}.`);
+                        alert(`✅ Baza przywrócona! Znaleziono miesięcy: ${Object.keys(imported).filter(k => /^\d{4}-\d{2}$/.test(k)).length}.`);
                     } catch (err) { alert('Błąd importu pliku!'); }
                 };
                 reader.readAsText(file);
@@ -323,7 +326,7 @@
             // i w strefie UTC+2 daje klucz o miesiąc za mały, np. kwiecień → '2026-03')
             const currentVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-            const endYear = 2026, endMonth = 11, startYear = 2026, startMonth = 2;
+            const endYear = now.getFullYear() + 1, endMonth = 11, startYear = 2026, startMonth = 2;
 
             for (let year = endYear; year >= startYear; year--) {
                 let mEnd = (year === endYear) ? endMonth : 11;
@@ -353,13 +356,20 @@
 
         function renderAll() {
             const month = document.getElementById('activeMonth').value;
-            const db = invoicingDB[month] || { pl: {}, hu: {}, find: {}, alcance: {}, logs: [], redoLogs: [] };
-            
-            // Render logic per tab
-            ['PL', 'HU', 'FIND', 'ALCANCE'].forEach(type => {
-                const container = document.getElementById('content' + type);
-                const logs = (db.logs || []).filter(l => l.type === type);
-                const redoLogs = (db.redoLogs || []).filter(l => l.type === type);
+            const db = invoicingDB[month] || { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [], redoLogs: [] };
+
+            // Grupy zakładek: id zakładki → typy logów (łącznie z legacy przed v3)
+            const tabGroups = [
+                { tabId: 'TRENDI', types: ['PL', 'DE', 'LT', 'CZ', 'SK', 'LV', 'FIND'] },
+                { tabId: 'HU',     types: ['HU'] },
+                { tabId: 'SMART',  types: ['PT', 'ES', 'ALCANCE'] }
+            ];
+
+            tabGroups.forEach(({ tabId, types }) => {
+                const type = tabId; // alias dla czytelności w renderowaniu
+                const container = document.getElementById('content' + tabId);
+                const logs = (db.logs || []).filter(l => types.includes(l.type));
+                const redoLogs = (db.redoLogs || []).filter(l => types.includes(l.type));
 
                 if (logs.length === 0 && redoLogs.length === 0) {
                     container.innerHTML = '<div class="empty-state">Brak historii dla tego miesiąca w tej firmie.</div>';
@@ -405,8 +415,9 @@
                         <tr>
                             <td style="color:var(--text-muted); font-size:0.8rem;">${activeRowNum++}</td>
                             <td>
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                                     <span style="font-weight: 600; color: var(--accent);">${log.invoiceNumber || '---'}</span>
+                                    <span style="font-size: 0.65rem; background: rgba(16,185,129,0.15); color: #34d399; padding: 1px 5px; border-radius: 4px; font-weight: 700;">${log.type}</span>
                                     <button class="btn-action" style="padding: 0.2rem 0.4rem; font-size: 0.7rem;" onclick="editInvoiceNumber('${month}', ${realIdxInDB})">✏️</button>
                                 </div>
                             </td>
@@ -673,7 +684,7 @@
             if (!confirm(`Czy na pewno przenieść tę fakturę (Nr: ${log.invoiceNumber || '---'}) z ${currentMonth} do ${targetMonth}?`)) return;
 
             if (!invoicingDB[targetMonth]) {
-                invoicingDB[targetMonth] = { pl: {}, hu: {}, find: {}, alcance: {}, logs: [], redoLogs: [] };
+                invoicingDB[targetMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [], redoLogs: [] };
             }
             const targetDb = invoicingDB[targetMonth];
             const typeKey = log.type.toLowerCase();
