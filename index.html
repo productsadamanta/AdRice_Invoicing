@@ -591,6 +591,41 @@
             color: white;
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
         }
+
+        .delta-input {
+            width: 70px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 4px;
+            color: var(--success);
+            font-weight: 700;
+            padding: 4px 6px;
+            text-align: center;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .delta-input:focus {
+            border-color: var(--accent);
+        }
+        .delta-input.negative {
+            color: #ef4444;
+            border-color: rgba(239,68,68,0.4);
+        }
+        .delete-row-btn {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+        .delete-row-btn:hover {
+            background: rgba(239,68,68,0.3);
+            color: #fca5a5;
+        }
     </style>
 </head>
 
@@ -1313,9 +1348,14 @@
         // Normalizacja nazwy z Amspedu by powiązać Lists z Performances wykluczając drobne wariancje np "BLOCKED", "ON HOLD"
         function normalizeAmspedName(name) {
             if (!name) return "";
-            // Usuwa prefixy statusu, które mogą pojawiać się w Lists, ale nie w Performance
             return name.toLowerCase()
                 .replace(/^(blocked|on hold|\?\?)\s+/i, '')
+                // Usuwamy TYLKO wewnętrzne tagi statusu Amsped (np. (T-D), (NS), (LS_N)) -
+                // NIE usuwamy opisowych wariantów w nawiasach typu (SEASONAL OFFER), bo to
+                // rozróżnia różne oferty o tej samej nazwie bazowej (np. SKU456 zwykła vs
+                // sezonowa Hungary). Usuwanie ich wszystkich powodowało, że dwie różne oferty
+                // (różne offerId) zlewały się w jeden klucz mapowania i nadpisywały się nawzajem.
+                .replace(/\s*\(\s*(?:t-d|t-m|ns|nd|rbs|rsb|ls[_-]n|l_n|d_g|ptc|ll|hh)\s*\)/gi, '')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
@@ -1453,6 +1493,20 @@
                             let normalized = normalizeAmspedName(rawName);
 
                             let offerId = mappings.nameToOfferId[normalized] || "NO_ID";
+
+                            if (offerId === "NO_ID") {
+                                let withoutSku = normalized.replace(/^sku\w*\s+/i, '');
+                                if (withoutSku !== normalized) {
+                                    offerId = mappings.nameToOfferId[withoutSku] || "NO_ID";
+                                }
+                            }
+                            if (offerId === "NO_ID") {
+                                let withoutSku = normalized.replace(/^sk\d+\s+/i, '');
+                                if (withoutSku !== normalized) {
+                                    offerId = mappings.nameToOfferId[withoutSku] || "NO_ID";
+                                }
+                            }
+
                             let country = getCountryCode(rawName, accountName, offerId);
                             let adRiceInfo = mappings.offerIdToData[offerId] || { name: rawName, payout: "0.00" };
 
@@ -1851,13 +1905,14 @@
                                         <th>NOWA FAKTURA</th>
                                         <th style="text-align: right;">Cena/Szt</th>
                                         <th style="text-align: right;">Wartość</th>
+                                        <th style="width: 40px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                 `;
 
                 let rowNum = 1;
-                itemsArr.forEach(item => {
+                itemsArr.forEach((item, itemIndex) => {
                     let deltaVal = (item.delta * item.price).toFixed(2);
                     htmlString += `
                     <tr id="viewrow-${elementId}-${rowNum}">
@@ -1870,19 +1925,22 @@
                         </td>
                         <td style="color:var(--text-muted)">
                             ${item.basePaid}
-                            ${item.adjInfo.total !== 0 ? ` 
-                                <span style="color:#fbbf24; cursor:help; font-weight:bold;" 
+                            ${item.adjInfo.total !== 0 ? `
+                                <span style="color:#fbbf24; cursor:help; font-weight:bold;"
                                     title="Korekty: ${item.adjInfo.pending !== 0 ? 'Oczekujące: ' + (item.adjInfo.pending > 0 ? '+' : '') + item.adjInfo.pending : ''} ${item.adjInfo.used !== 0 ? '\nRozliczone: ' + (item.adjInfo.used > 0 ? '+' : '') + item.adjInfo.used + ' (Faktura: ' + item.adjInfo.usedBy.join(', ') + ')' : ''}">
                                     ${item.adjInfo.total > 0 ? '+' : ''}${item.adjInfo.total}*
                                 </span>` : ''}
                         </td>
                         <td>${item.currentCount}</td>
-                        <td style="font-weight:700; color:${item.delta >= 0 ? 'var(--success)' : '#ef4444'}">
-                            ${item.delta > 0 ? '+' : ''}${item.delta}
-                            ${item.delta < 0 ? ' <small style="display:block; font-size:0.6rem; color:#f87171; font-weight:normal;">⚠️ SPADEK</small>' : ''}
+                        <td>
+                            <input type="number" class="delta-input ${item.delta < 0 ? 'negative' : ''}" value="${item.delta}"
+                                onchange="updateItemDelta('${elementId}', ${itemIndex}, parseInt(this.value)||0)">
                         </td>
                         <td class="price" style="text-align: right;">${item.price.toFixed(2)}</td>
                         <td style="text-align: right; font-weight:700;">${deltaVal} €</td>
+                        <td style="text-align:center;">
+                            <button class="delete-row-btn" onclick="removeInvoiceItem('${elementId}', ${itemIndex})" title="Usuń pozycję z faktury">✕</button>
+                        </td>
                     </tr>
                     `;
                     rowNum++;
@@ -1899,6 +1957,7 @@
                         <td style="font-weight:700;">${isRabat ? '-1' : '+1'} Szt</td>
                         <td style="text-align:right;">${Math.abs(adj.amount).toFixed(2)}</td>
                         <td style="text-align:right; font-weight:700;">${adj.amount.toFixed(2)} €</td>
+                        <td></td>
                     </tr>
                     `;
                 });
@@ -1909,10 +1968,12 @@
                     <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
                         <td colspan="6" style="text-align: right; color: var(--success);">Suma delta >0:</td>
                         <td style="text-align: right; color: var(--success);">${positiveValue.toFixed(2)} €</td>
+                        <td></td>
                     </tr>
                     <tr style="background: rgba(255,255,255,0.02); font-weight: 600; font-size: 0.85rem;">
                         <td colspan="6" style="text-align: right; color: #f87171;">Discount:</td>
                         <td style="text-align: right; color: #f87171;">${negativeValue.toFixed(2)} €</td>
+                        <td></td>
                     </tr>
                     `;
                 }
@@ -1924,6 +1985,7 @@
                         <td>${sumPrev}</td><td>${sumCurrent}</td>
                         <td style="color:${sumDelta >= 0 ? 'var(--success)' : '#f87171'}">${sumDelta > 0 ? '+' : ''}${sumDelta}</td>
                         <td>-</td><td style="text-align: right; color:#fbbf24;">${finalCorrectionValue.toFixed(2)} €</td>
+                        <td></td>
                     </tr></tbody></table>
                     <div style="margin-top: 1rem; text-align: right;">
                         <button onclick="toggleInvoiceTable('${elementId}', ${itemsArr.length})" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); color: var(--text-muted); padding: 0.5rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.8rem;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='white';" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-muted)';">
@@ -1957,6 +2019,32 @@
                 container.style.display = 'none';
                 btn.innerHTML = `<span id="toggle-icon-${elementId}">▼</span> Rozwiń listę pozycji (${itemsCount})`;
             }
+        };
+
+        window.updateItemDelta = function(accountKey, itemIndex, newDelta) {
+            const items = lastGeneratedResults[accountKey];
+            if (!items || !items[itemIndex]) return;
+            const item = items[itemIndex];
+            item.delta = newDelta;
+            item.currentCount = item.previousCount + newDelta;
+            renderInvoicesFromCache();
+            const tableContainer = document.getElementById(`table-container-${accountKey}`);
+            if (tableContainer) tableContainer.style.display = 'block';
+            const btn = document.getElementById(`toggle-btn-${accountKey}`);
+            if (btn) btn.innerHTML = `<span>▲</span> Zwiń listę pozycji`;
+        };
+
+        window.removeInvoiceItem = function(accountKey, itemIndex) {
+            const items = lastGeneratedResults[accountKey];
+            if (!items || !items[itemIndex]) return;
+            const item = items[itemIndex];
+            if (!confirm(`Usunąć pozycję #${item.id} (${item.title.substring(0, 50)}...) z faktury?`)) return;
+            items.splice(itemIndex, 1);
+            renderInvoicesFromCache();
+            const tableContainer = document.getElementById(`table-container-${accountKey}`);
+            if (tableContainer) tableContainer.style.display = 'block';
+            const btn = document.getElementById(`toggle-btn-${accountKey}`);
+            if (btn) btn.innerHTML = `<span>▲</span> Zwiń listę pozycji`;
         };
 
         // Function allowing copying a single summary line
@@ -2313,9 +2401,9 @@
             rows.forEach(row => {
                 let cols = Array.from(row.querySelectorAll("td"));
                 let rowData = cols.map((c, i) => {
-                    let text = c.innerText.trim();
+                    let input = c.querySelector('input');
+                    let text = input ? input.value : c.innerText.trim();
                     if (i === 4) {
-                        // NOWA FAKTURA (delta) - tylko liczba całkowita, bez + i bez ⚠️ SPADEK
                         let match = text.match(/-?\d+/);
                         return match ? match[0] : text;
                     }

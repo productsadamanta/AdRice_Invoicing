@@ -221,6 +221,33 @@
         .summary-toggle:hover { background: rgba(16, 185, 129, 0.2); }
         .monthly-summary-table { display: none; }
         .monthly-summary-table.active { display: block; animation: fadeIn 0.3s ease; }
+
+        .delta-input {
+            width: 70px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--accent);
+            font-weight: 700;
+            padding: 4px 6px;
+            text-align: center;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .delta-input:focus { border-color: var(--accent); }
+        .delta-input.negative { color: #ef4444; border-color: rgba(239,68,68,0.4); }
+        .delete-row-btn {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+        .delete-row-btn:hover { background: rgba(239,68,68,0.3); color: #fca5a5; }
     </style>
 </head>
 
@@ -533,8 +560,10 @@
             const log = invoicingDB[m].logs[idx];
             if (!log) return;
 
+            window._currentDetailLogIdx = idx;
+
             document.getElementById('modalTitle').innerHTML = `PODGLĄD FAKTURY: <span style="color: white;">${log.invoiceNumber || '---'}</span> <br> <span style="font-size: 0.9rem; color: var(--text-muted);">${log.type} (${log.timestamp})</span>`;
-            
+
             let sumDelta = 0;
             let sumTotal = 0;
 
@@ -548,13 +577,14 @@
                             <th style="text-align:right">Leady (Delta)</th>
                             <th style="text-align:right">Cena</th>
                             <th style="text-align:right">Suma</th>
+                            <th style="width: 40px;"></th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
             let rowNum = 1;
-            log.items.forEach(it => {
+            log.items.forEach((it, itemIdx) => {
                 if (it.delta !== 0) {
                     let total = it.delta * it.price;
                     sumDelta += it.delta;
@@ -569,15 +599,20 @@
                                     <button class="btn-action" style="padding: 2px 5px; font-size: 10px; flex-shrink: 0; margin-left: 0;" onclick="copyToClipboard('${it.title.replace(/'/g, "\\'")}')" title="Kopiuj nazwę">📋</button>
                                 </div>
                             </td>
-                            <td style="text-align:right; font-weight:700;">${it.delta > 0 ? '+' : ''}${it.delta}</td>
+                            <td style="text-align:right;">
+                                <input type="number" class="delta-input ${it.delta < 0 ? 'negative' : ''}" value="${it.delta}"
+                                    onchange="updateHistoryItemDelta(${idx}, ${itemIdx}, parseInt(this.value)||0)">
+                            </td>
                             <td style="text-align:right; color:var(--text-muted);">${it.price.toFixed(2)} €</td>
                             <td style="text-align:right; font-weight:700; color:var(--accent);">${total.toFixed(2)} €</td>
+                            <td style="text-align:center;">
+                                <button class="delete-row-btn" onclick="removeHistoryItem(${idx}, ${itemIdx})" title="Usuń pozycję">✕</button>
+                            </td>
                         </tr>
                     `;
                 }
             });
 
-            // NOWOŚĆ: Wyświetlanie RABATÓW/KOREKT zapisanych w danym logu
             if (log.adjustments && log.adjustments.length > 0) {
                 log.adjustments.forEach(adj => {
                     sumTotal += adj.amount;
@@ -588,6 +623,7 @@
                             <td style="text-align:right">-</td>
                             <td style="text-align:right; color:var(--text-muted);">${Math.abs(adj.amount).toFixed(2)} €</td>
                             <td style="text-align:right; font-weight:700; color:var(--success);">${adj.amount.toFixed(2)} €</td>
+                            <td></td>
                         </tr>
                     `;
                 });
@@ -599,13 +635,13 @@
                     <td style="text-align:right;">${sumDelta}</td>
                     <td style="text-align:right;">-</td>
                     <td style="text-align:right; color:#fbbf24; font-size:1.1rem;">${sumTotal.toFixed(2)} €</td>
+                    <td></td>
                 </tr>
             </tbody></table>`;
 
             document.getElementById('modalContent').innerHTML = html;
             document.getElementById('detailsModal').style.display = 'flex';
 
-            // Przypisanie akcji kopiowania dla konkretnego logu
             document.getElementById('copyBatchBtn').onclick = () => {
                 let csv = "Produkt / SKU\tLeady\tCena\tSuma\n";
                 log.items.forEach(it => {
@@ -614,12 +650,58 @@
                     }
                 });
                 csv += `SUMA CAŁKOWITA:\t${sumDelta}\t-\t${sumTotal.toFixed(2)}`;
-                
+
                 navigator.clipboard.writeText(csv).then(() => {
                     showNotif("Skopiowano dane do schowka! Możesz wkleić do Excela.");
                 });
             };
         }
+
+        window.updateHistoryItemDelta = function(logIdx, itemIdx, newDelta) {
+            const m = document.getElementById('activeMonth').value;
+            const db = invoicingDB[m];
+            const log = db.logs[logIdx];
+            const item = log.items[itemIdx];
+            const typeKey = log.type.toLowerCase();
+
+            const oldDelta = item.delta;
+            const deltaDiff = newDelta - oldDelta;
+
+            item.delta = newDelta;
+            item.curr = item.prev + newDelta;
+            db[typeKey][item.id] = (db[typeKey][item.id] || 0) + deltaDiff;
+
+            saveDB();
+            viewDetails(logIdx);
+            showNotif(`Zaktualizowano deltę dla #${item.id}: ${oldDelta} → ${newDelta}. Baza skorygowana o ${deltaDiff > 0 ? '+' : ''}${deltaDiff}.`);
+        };
+
+        window.removeHistoryItem = function(logIdx, itemIdx) {
+            const m = document.getElementById('activeMonth').value;
+            const db = invoicingDB[m];
+            const log = db.logs[logIdx];
+            const item = log.items[itemIdx];
+            const typeKey = log.type.toLowerCase();
+
+            if (!confirm(`Usunąć pozycję #${item.id} (delta: ${item.delta}) z tej faktury?\n\nBaza leadów zostanie skorygowana.`)) return;
+
+            db[typeKey][item.id] = (db[typeKey][item.id] || 0) - item.delta;
+            log.items.splice(itemIdx, 1);
+
+            if (log.items.length === 0 && (!log.adjustments || log.adjustments.length === 0)) {
+                if (confirm("Faktura nie ma już żadnych pozycji. Usunąć cały wpis z historii?")) {
+                    db.logs.splice(logIdx, 1);
+                    saveDB();
+                    closeModal();
+                    showNotif("Usunięto pustą fakturę z historii.");
+                    return;
+                }
+            }
+
+            saveDB();
+            viewDetails(logIdx);
+            showNotif(`Usunięto pozycję #${item.id}. Baza leadów skorygowana o ${-item.delta}.`);
+        };
 
         window.closeModal = function() {
             document.getElementById('detailsModal').style.display = 'none';
