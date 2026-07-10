@@ -2449,11 +2449,21 @@
                 }
             });
 
-            const appliedAdjustments = pendingAdjustments.filter(a => a.account === accountKey && a.status === 'pending' && a.month < selectedMonth);
+            const appliedAdjustments = invoicingMode === 'cumulative'
+                ? pendingAdjustments.filter(a => a.account === accountKey && a.status === 'pending' && a.month < selectedMonth)
+                : [];
             appliedAdjustments.forEach(adj => {
                 if (adj.amount > 0) {
                     // Oczekujące dopłaty zostawiamy jako osobną pozycję na plus
                     let title = `Korekta / Dopłata za: ${adj.month}`;
+                    let qty = 1;
+                    let rateStr = adj.amount.toFixed(2);
+                    let amountStr = adj.amount.toFixed(2);
+                    let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
+                    tsvText += rowTsv + "\n";
+                } else if (adj.amount < 0) {
+                    // Oczekujące rabaty jako osobna pozycja na minus
+                    let title = `Korekta / Rabat za: ${adj.month}`;
                     let qty = 1;
                     let rateStr = adj.amount.toFixed(2);
                     let amountStr = adj.amount.toFixed(2);
