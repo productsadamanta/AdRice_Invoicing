@@ -1,0 +1,1527 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekoncyliacja Wartości Leadów - AdRice Invoicing</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse do parsowania CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --accent: #10b981;
+            --accent-hover: #34d399;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --warn: #f59e0b;
+            --danger: #ef4444;
+            --info: #60a5fa;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 { margin: 0; font-size: 1.8rem; background: -webkit-linear-gradient(45deg, #10b981, #60a5fa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 1.1rem; color: var(--text-main); margin: 0 0 1rem 0; display:flex; align-items:center; gap:0.5rem; }
+        h3 { font-size: 0.95rem; color: var(--accent-hover); margin: 1.5rem 0 0.75rem 0; }
+
+        .month-selector select, .header select {
+            padding: 0.6rem 1rem;
+            background: var(--panel-bg);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, rgba(96,165,250,0.08) 0%, rgba(16,185,129,0.05) 100%);
+            border: 1px solid rgba(96,165,250,0.35);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 2rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        .intro-box b { color: var(--text-main); }
+        .phase-tag {
+            display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px;
+            margin-right:0.4rem; text-transform:uppercase; letter-spacing:0.03em;
+        }
+        .phase-live { background:rgba(16,185,129,0.2); color:#34d399; }
+        .phase-pending { background:rgba(148,163,184,0.15); color:#94a3b8; }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            text-align: center;
+            background: rgba(0,0,0,0.15);
+            transition: all 0.2s;
+        }
+        .dropzone.filled { border-color: var(--accent); background: rgba(16,185,129,0.06); }
+        .dropzone label { display:block; font-size:0.8rem; font-weight:600; margin-bottom:0.5rem; color: var(--text-main); }
+        .dropzone input[type=file] { width:100%; font-size:0.75rem; color: var(--text-muted); }
+        .dropzone .filestat { font-size: 0.7rem; color: var(--accent-hover); margin-top:0.4rem; min-height: 1em; }
+
+        .btn {
+            padding: 0.65rem 1.2rem;
+            border-radius: 8px;
+            border: 1px solid var(--accent);
+            background: rgba(16,185,129,0.15);
+            color: var(--accent-hover);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: rgba(16,185,129,0.3); }
+        .btn.secondary { border-color: var(--info); background: rgba(59,130,246,0.1); color: var(--info); }
+        .btn.secondary:hover { background: rgba(59,130,246,0.25); }
+        .btn.ghost { border-color: var(--border); background: rgba(255,255,255,0.04); color: var(--text-muted); }
+        .btn.big { padding: 1rem 2rem; font-size: 1rem; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .config-row { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start; margin-bottom:1rem; font-size:0.8rem; }
+        .config-row label { display:block; font-weight:600; margin-bottom:0.3rem; color: var(--text-muted); }
+        textarea.status-input {
+            width: 100%; min-width: 280px; min-height: 50px; background: rgba(0,0,0,0.3);
+            border:1px solid var(--border); border-radius:6px; color: var(--accent-hover); padding:0.5rem;
+            font-family: monospace; font-size: 0.8rem;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(0,0,0,0.15);
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 0.82rem;
+        }
+        table.data-table th, table.data-table td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+        table.data-table th { background: rgba(255, 255, 255, 0.03); color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        table.data-table tbody tr:hover { background: rgba(255,255,255,0.03); cursor: pointer; }
+
+        .tag { font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; display:inline-block; }
+        .tag-ok { background: rgba(16,185,129,0.15); color: #34d399; }
+        .tag-warn { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .tag-danger { background: rgba(239,68,68,0.15); color: #f87171; }
+        .tag-info { background: rgba(96,165,250,0.15); color: #93c5fd; }
+        .tag-muted { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+        .stat-row { display:flex; gap:2rem; flex-wrap:wrap; margin-bottom:1rem; }
+        .stat-box { }
+        .stat-box .stat-label { font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; }
+        .stat-box .stat-value { font-size:1.4rem; font-weight:700; }
+
+        .empty-state {
+            padding: 2.5rem;
+            text-align: center;
+            color: var(--text-muted);
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+            border: 2px dashed var(--border);
+            font-size: 0.85rem;
+        }
+
+        .confidence-banner {
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.35);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.8rem;
+            color: #fcd34d;
+            line-height:1.6;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-body {
+            background: var(--panel-bg);
+            width: 92%;
+            max-width: 950px;
+            max-height: 85vh;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 2rem;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+        }
+        .close-modal { position: absolute; top: 1.5rem; right: 1.5rem; cursor: pointer; font-size: 1.5rem; color: var(--text-muted); }
+        .close-modal:hover { color: white; }
+
+        #notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #10b981;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 2000;
+            max-width: 420px;
+            font-size: 0.85rem;
+        }
+
+        details.section-help { margin-bottom: 1rem; }
+        details.section-help summary { cursor:pointer; font-size:0.78rem; color: var(--info); }
+        details.section-help div { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.6; background: rgba(0,0,0,0.15); padding: 0.75rem 1rem; border-radius: 8px; }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>🔍 Rekoncyliacja Wartości Leadów</h1>
+        <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+            <button class="btn ghost" onclick="importArchiveBackup()" title="Wczytaj dodatkowy plik z ArchiveBackups jako uzupełniające źródło logów faktur dla miesięcy, których nie ma w aktualnej bazie przeglądarki">📂 Wczytaj archiwalny backup</button>
+            <button class="btn ghost" onclick="exportPriceHistory()" title="Zapisz plik price_history.json (kopia zapasowa historii cen)">💾 Eksport historii cen</button>
+            <button class="btn ghost" onclick="importPriceHistory()" title="Wczytaj wcześniej zapisany plik price_history.json">📂 Import historii cen</button>
+            <div class="month-selector">
+                <select id="activeMonth" onchange="onMonthChange()"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="intro-box">
+        Narzędzie liczy, dla wybranego miesiąca, <b>ile powinno było zostać zafakturowane</b> na bazie realnej daty powstania każdego leada i stawki, którą FAKTYCZNIE zafakturowano za taki lead w danym okresie (nie rekonstrukcji z komponentów oferty) — i porównuje to z tym, <b>co faktycznie zafakturowano</b> (na podstawie logów potwierdzeń z Hub-a). Narzędzie jest <b>tylko do odczytu</b> względem <code>index.html</code> — niczego nie nadpisuje w Hub-ie.
+        <br><br>
+        <span class="phase-tag phase-live">Faza 1</span>Dane per-lead z datą (Sekcja B)
+        <span class="phase-tag phase-live">Faza 2</span>Wykrywanie DAT granic zmian cen ze snapshotów (Sekcja A)
+        <span class="phase-tag phase-live">Faza 3/5</span>Raport rozbieżności (Sekcja C) — działa dla dowolnego miesiąca, bieżącego i przeszłego
+        <span class="phase-tag phase-live">Faza 4</span>Dokładne DATY granic zmian cen z historii AdRice — <code>adrice_offer_history_scraper.js</code> (wklej do konsoli na stronie <code>/en/offers</code>, wynik wgraj w Sekcji A). Wartości cen zawsze biorą się z realnych faktur, nie z tego skryptu.
+    </div>
+
+    <!-- SEKCJA A -->
+    <div class="panel">
+        <h2>💶 Sekcja A — Daty granic zmian cen</h2>
+        <details class="section-help">
+            <summary>Jak to działa?</summary>
+            <div>
+                <b>WARTOŚCI cen w raporcie (Sekcja C) ZAWSZE pochodzą z realnie zafakturowanych stawek w logach Hub-a</b> — nigdy z tej sekcji. Ta sekcja odpowiada tylko za jedno: kiedy DOKŁADNIE nastąpiła granica między dwoma sąsiednimi, realnie zaobserwowanymi w fakturach poziomami cen (potrzebne, żeby poprawnie podzielić leady z danego miesiąca na "stara cena" / "nowa cena"). Rekonstrukcja WARTOŚCI z sumowania komponentów oferty (Payout + Advertiser Fee + Native Adv Fee) została porzucona jako z natury krucha — komponenty służą teraz wyłącznie jako źródło DATY.<br><br>
+                Dwa niezależne źródła dat zasilają tę samą oś czasu (<code>price_history.json</code>, localStorage <code>adrice_price_history_v1</code>):<br>
+                1. <b>Snapshot zwykłego scrapera ofert</b> (plik <code>adrice_offers_prices.csv</code>, ten sam, którego już używasz co tydzień w Hub-ie) — jeśli suma się zmieniła względem poprzedniego uploadu, zapamiętywana jest data TEGO uploadu jako przybliżona (<span class="tag tag-warn">inferred</span>) data granicy — używana tylko gdy brak dokładniejszego źródła.<br>
+                2. <b>Dokładna historia zmian z AdRice</b> — wklej <code>adrice_offer_history_scraper.js</code> do konsoli na stronie <code>/en/offers</code> (tak jak zwykły scraper), pobierze pełną historię zmian komponentów ze wszystkich ofert naraz. Wynikowy CSV wgraj tutaj — daje wpisy <span class="tag tag-ok">exact</span> z prawdziwą datą i godziną zmiany (najlepsze źródło daty granicy).<br><br>
+                Jeśli dla jakiejś realnej zmiany ceny w fakturach nie znajdzie się żadna data w żadnym z tych dwóch źródeł, narzędzie spada do przybliżenia — środka okna między ostatnią fakturą ze starą ceną a pierwszą z nową — i wyraźnie to oznacza (patrz tabela "brakujące daty granic" poniżej, jeśli występuje).
+            </div>
+        </details>
+
+        <div class="upload-grid">
+            <div class="dropzone" id="dz-snapshot">
+                <label>📄 Snapshot ofert (adrice_offers_prices.csv — Aktywne + Nieaktywne)</label>
+                <input type="file" id="fileSnapshot" accept=".csv" multiple onchange="onSnapshotFilesSelected(this.files)">
+                <div class="filestat" id="stat-snapshot"></div>
+            </div>
+            <div class="dropzone" id="dz-history">
+                <label>📄 Dokładna historia cen (wynik adrice_offer_history_scraper.js)</label>
+                <input type="file" id="fileHistory" accept=".csv" multiple onchange="onHistoryFilesSelected(this.files)">
+                <div class="filestat" id="stat-history"></div>
+                <button class="btn secondary" style="margin-top:0.6rem; width:100%;" onclick="copyOfferHistoryScraper()">📋 Kopiuj skrypt scrapera historii cen</button>
+            </div>
+        </div>
+
+        <div id="priceHistoryCoverage"></div>
+    </div>
+
+    <!-- SEKCJA B -->
+    <div class="panel">
+        <h2>📅 Sekcja B — Leady z realną datą powstania</h2>
+        <details class="section-help">
+            <summary>Jak to działa?</summary>
+            <div>
+                Wgraj surowe eksporty <b>Amsped Administration</b> (pełny eksport CSV, ten sam typ pliku co w procesie Delivery Profit) — po jednym na konto. Z kolumny <code>product_SKU</code> (np. <code>UCP2283-2278</code>) wyciągany jest offer ID (<code>UCP(\d+)</code>), z <code>creation_date</code> — realna data powstania leada, z <code>country</code> — kraj (bezpośrednio, bez zgadywania z nazwy). Lead liczy się jako "potwierdzony" (Positivi), jeśli NIE ma <code>ship_status</code> z listy wykluczeń (domyślnie: <code>Not Shipped</code>), chyba że jego status jest na liście "zwolnionych" (np. <code>OK - Pending</code> naturalnie jeszcze nie mogło zostać wysłane, a mimo to się liczy). Osobna lista wykluczonych statusów, niezależna od ship_status, jest domyślnie <b>pusta</b> — zweryfikowaliśmy na ofercie #2285, że blanketowe wykluczanie statusów typu Cancelled/Trash niezależnie od ship_status było błędem: część takich leadów miała ship_status inny niż Not Shipped i powinna się liczyć. Zostaw ją pustą, chyba że panel kontrolny poniżej wskaże inaczej dla konkretnej oferty.
+            </div>
+        </details>
+
+        <div class="config-row">
+            <div style="flex:1; min-width:220px;">
+                <label>Statusy WYKLUCZONE z potwierdzonych leadów, niezależnie od ship_status (oddziel przecinkiem, domyślnie puste)</label>
+                <textarea class="status-input" id="statusExcludeConfig"></textarea>
+            </div>
+            <div style="flex:1; min-width:220px;">
+                <label>Wykluczone wartości ship_status (oddziel przecinkiem)</label>
+                <textarea class="status-input" id="shipStatusExcludeConfig">Not Shipped</textarea>
+            </div>
+            <div style="flex:1; min-width:220px;">
+                <label>Statusy ZWOLNIONE z wykluczenia po ship_status (mimo Not Shipped nadal liczone)</label>
+                <textarea class="status-input" id="shipStatusExemptConfig">OK - Pending</textarea>
+            </div>
+            <div>
+                <label>Filtr źródła</label>
+                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                    <input type="checkbox" id="sourceFilterToggle" checked>
+                    tylko source = traffic_manager / adrice
+                </label>
+            </div>
+            <div>
+                <label>Data referencyjna do ustalania ceny i przypisania do miesiąca</label>
+                <select id="pricingDateMode" onchange="renderSanityCheck()" style="padding:0.5rem 0.7rem; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--accent-hover); font-weight:600;">
+                    <option value="creation" selected>creation_date (data powstania leada) — wyznacznik ceny leada</option>
+                    <option value="confirm">confirm_date (data potwierdzenia)</option>
+                </select>
+                <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.3rem; max-width:320px;">creation_date wyznacza cenę leada. Gdy jest puste (rzadkie), narzędzie automatycznie użyje <code>confirm_date</code> jako zapasu.</div>
+            </div>
+            <div>
+                <label>Precyzja porównania daty ze zmianą ceny</label>
+                <select id="dateGranularity" onchange="renderSanityCheck()" style="padding:0.5rem 0.7rem; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--accent-hover); font-weight:600;">
+                    <option value="exact" selected>Dokładny czas (godzina:minuta:sekunda) — moment zmiany włącznie liczy się już po nowej cenie</option>
+                    <option value="day">Dzień (cały dzień zmiany = nowa cena)</option>
+                </select>
+                <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.3rem; max-width:320px;">Jeśli zmiana nastąpiła np. równo o 15:00:00 — leady do 14:59:59 liczą się po starej cenie, leady od 15:00:00 włącznie już po nowej. Wymaga dokładnej godziny zmiany w Sekcji A (pole <code>Changed_At</code>); jeśli znasz tylko dzień zmiany, wpisz <code>00:00:00</code> i użyj trybu "Dzień".</div>
+            </div>
+        </div>
+
+        <div class="upload-grid">
+            <div class="dropzone" id="dz-uncapped">
+                <label>Uncapped (PL/HU)</label>
+                <input type="file" id="fileAdminUncapped" accept=".csv" onchange="onAdminFileSelected(this.files[0], 'Uncapped', 'dz-uncapped', 'stat-uncapped')">
+                <div class="filestat" id="stat-uncapped"></div>
+            </div>
+            <div class="dropzone" id="dz-find">
+                <label>Find (DE/LT/CZ/SK/LV)</label>
+                <input type="file" id="fileAdminFind" accept=".csv" onchange="onAdminFileSelected(this.files[0], 'Find', 'dz-find', 'stat-find')">
+                <div class="filestat" id="stat-find"></div>
+            </div>
+            <div class="dropzone" id="dz-alcance">
+                <label>Alcance (PT/ES)</label>
+                <input type="file" id="fileAdminAlcance" accept=".csv" onchange="onAdminFileSelected(this.files[0], 'Alcance', 'dz-alcance', 'stat-alcance')">
+                <div class="filestat" id="stat-alcance"></div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <button class="btn ghost" onclick="clearLeadsData()">🗑️ Wyczyść wczytane leady</button>
+        </div>
+
+        <div id="leadsSummary"></div>
+
+        <h3>🩺 Panel kontrolny (sanity-check) dla wybranego miesiąca</h3>
+        <div id="sanityCheckPanel"></div>
+    </div>
+
+    <!-- SEKCJA C -->
+    <div class="panel">
+        <h2>📊 Sekcja C — Raport rozbieżności</h2>
+        <details class="section-help">
+            <summary>Jak to działa?</summary>
+            <div>
+                Dla wybranego miesiąca: <b>Powinno Być</b> = suma po wszystkich potwierdzonych leadach z Sekcji B, każdy wyceniony wg REALNIE zafakturowanej stawki (z logów Hub-a, nie z rekonstrukcji komponentów oferty) obowiązującej dokładnie w dniu jego powstania — granice między kolejnymi stawkami ustalane są datami z Sekcji A. <b>Faktycznie Zafakturowano</b> = odtworzone z logów potwierdzeń w bazie Hub-a (<code>invoicingDB[miesiąc].logs</code>), z okresem każdego zatwierdzenia wywnioskowanym z dnia tygodnia (poniedziałek → piątek-niedziela, piątek → poniedziałek-czwartek; tryb AUTOMAT → cały miesiąc jako top-up kumulacyjny). Raport zawsze liczony jest dla całego miesiąca (nie pojedynczego tygodnia), żeby uniknąć porównywania niekompatybilnych okien czasowych.
+            </div>
+        </details>
+
+        <h3 style="margin-top:0;">⚡ Oferty ze zmianą ceny w wybranym miesiącu</h3>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Szybki podgląd, które oferty warto sprawdzić ręcznie (cena zmieniła się w trakcie miesiąca — potencjalne nad/niedofakturowanie) — reszta miała stałą cenę przez cały miesiąc, więc nie ma czego szukać. Liczone z realnych faktur (logi Hub-a), niezależnie od tego czy Sekcja B jest wgrana i bez klikania "Oblicz Rozbieżności".</div>
+        <div id="priceChangesThisMonth"></div>
+
+        <div style="margin:1.5rem 0 1.25rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+            <button class="btn big" onclick="runReconciliation()">⚙️ Oblicz Rozbieżności dla wybranego miesiąca</button>
+            <button class="btn ghost" id="exportReportBtn" style="display:none;" onclick="exportReportCsv()">⬇️ Eksportuj raport (CSV)</button>
+            <input type="text" id="offerFilterInput" placeholder="🔎 Filtruj po Offer ID (np. 693)" oninput="applyOfferFilter()"
+                style="padding:0.6rem 0.9rem; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.25); color:var(--text-main); font-size:0.85rem; min-width:220px;">
+        </div>
+        <div id="reportContainer"></div>
+    </div>
+
+    <!-- Modal -->
+    <div id="detailsModal" class="modal-overlay">
+        <div class="modal-body">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+<script>
+// ============================================================================
+// STAN / STAŁE
+// ============================================================================
+const LS_INVOICING = 'adrice_invoicing_db_v2';
+const LS_PRICE_HISTORY = 'adrice_price_history_v1';
+const SCOPE_COUNTRIES = ['pl','hu','de','lt','cz','sk','lv','pt','es'];
+const COUNTRY_NAMES = { pl:'Poland', hu:'Hungary', de:'Germany', lt:'Lithuania', cz:'Czechia', sk:'Slovakia', lv:'Latvia', pt:'Portugal', es:'Spain' };
+
+let invoicingDB = JSON.parse(localStorage.getItem(LS_INVOICING)) || {};
+let historicalDB = {}; // opcjonalny import z ArchiveBackups, uzupełniający brakujące miesiące
+let priceHistory = loadPriceHistory();
+let leadsData = [];       // {offerId, country, account, creationDate: Date, status, shipStatus, source}
+let leadsImportStats = {};
+let lastReportRows = [];
+let lastReportAdjustmentRows = [];
+let lastReportMonth = null;
+
+function loadPriceHistory() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(LS_PRICE_HISTORY));
+        if (raw && raw.offers) return raw;
+    } catch (e) {}
+    return { schemaVersion: 1, offers: {}, lastScrapeAt: null };
+}
+function savePriceHistory() {
+    localStorage.setItem(LS_PRICE_HISTORY, JSON.stringify(priceHistory));
+}
+
+// ============================================================================
+// POMOCNICZE
+// ============================================================================
+function parseCSVFile(file, options = {}) {
+    return new Promise((resolve, reject) => {
+        Papa.parse(file, { header: true, skipEmptyLines: true, ...options, complete: r => resolve(r.data), error: reject });
+    });
+}
+function parseEuroDecimal(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = parseFloat(String(v).replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+}
+function parseAdministrationDate(v) {
+    if (!v) return null;
+    const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6]);
+}
+function parseLogTimestamp(ts) {
+    if (!ts) return null;
+    const m = String(ts).match(/(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s+(\d{1,2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6]);
+}
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0); }
+function endOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function shiftMonthKey(monthKey, delta) {
+    let [y, m] = monthKey.split('-').map(Number);
+    m += delta;
+    while (m > 12) { m -= 12; y++; }
+    while (m < 1) { m += 12; y--; }
+    return `${y}-${String(m).padStart(2, '0')}`;
+}
+function monthBounds(monthKey) {
+    const [y, m] = monthKey.split('-').map(Number);
+    return { start: new Date(y, m - 1, 1), end: endOfDay(new Date(y, m, 0)) };
+}
+function fmtDate(d) {
+    if (!d) return '?';
+    return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function showNotif(msg, duration = 3500) {
+    const n = document.getElementById('notification');
+    n.innerText = msg;
+    n.style.display = 'block';
+    setTimeout(() => n.style.display = 'none', duration);
+}
+function closeModal() { document.getElementById('detailsModal').style.display = 'none'; }
+function downloadFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function initMonthSelector() {
+    const select = document.getElementById('activeMonth');
+    const now = new Date();
+    const currentVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const endYear = now.getFullYear() + 1, endMonth = 11, startYear = 2026, startMonth = 2;
+    for (let year = endYear; year >= startYear; year--) {
+        let mEnd = (year === endYear) ? endMonth : 11;
+        let mStart = (year === startYear) ? startMonth : 0;
+        for (let m = mEnd; m >= mStart; m--) {
+            let val = `${year}-${String(m + 1).padStart(2, '0')}`;
+            let label = new Date(year, m, 15).toLocaleString('pl-PL', { month: 'long', year: 'numeric' });
+            let opt = document.createElement('option');
+            opt.value = val; opt.innerText = label;
+            if (val === currentVal) opt.selected = true;
+            select.appendChild(opt);
+        }
+    }
+}
+function onMonthChange() {
+    renderSanityCheck();
+    renderPriceChangesThisMonth();
+    document.getElementById('reportContainer').innerHTML = '';
+    document.getElementById('exportReportBtn').style.display = 'none';
+}
+
+// ============================================================================
+// IMPORT ARCHIWALNEGO BACKUPU (opcjonalne uzupełnienie brakujących miesięcy)
+// ============================================================================
+function importArchiveBackup() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = ev => {
+            try {
+                const imported = JSON.parse(ev.target.result);
+                const monthKeys = Object.keys(imported).filter(k => /^\d{4}-\d{2}$/.test(k));
+                if (monthKeys.length === 0) { alert('Plik nie wygląda jak backup AdRice (brak kluczy YYYY-MM).'); return; }
+                monthKeys.forEach(k => { historicalDB[k] = imported[k]; });
+                invalidatePriceTimelineCache();
+                renderSanityCheck();
+                renderPriceChangesThisMonth();
+                showNotif(`📂 Wczytano archiwalny backup jako uzupełniające źródło: ${monthKeys.length} miesięcy. Używany tylko dla miesięcy bez logów w aktualnej bazie.`, 5000);
+            } catch (err) { alert('Błąd odczytu pliku backupu.'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function exportPriceHistory() {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+    downloadFile(`adrice_price_history_${stamp}.json`, JSON.stringify(priceHistory, null, 2), 'application/json');
+    showNotif('💾 Pobrano kopię historii cen.');
+}
+function importPriceHistory() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = ev => {
+            try {
+                const imported = JSON.parse(ev.target.result);
+                if (!imported || !imported.offers) { alert('Plik nie wygląda jak price_history.json.'); return; }
+                // scal (append-only, dedup) zamiast nadpisywać
+                Object.keys(imported.offers).forEach(offerId => {
+                    if (!priceHistory.offers[offerId]) priceHistory.offers[offerId] = { name: imported.offers[offerId].name || '', timeline: [] };
+                    const existing = priceHistory.offers[offerId];
+                    (imported.offers[offerId].timeline || []).forEach(entry => {
+                        const dup = existing.timeline.some(e => e.field === entry.field && e.changedAt === entry.changedAt && e.newValue === entry.newValue);
+                        if (!dup) existing.timeline.push(entry);
+                    });
+                });
+                invalidatePriceTimelineCache();
+                savePriceHistory();
+                renderPriceHistoryCoverage();
+                renderPriceChangesThisMonth();
+                showNotif('📂 Scalono zaimportowaną historię cen z bieżącą.');
+            } catch (err) { alert('Błąd odczytu pliku historii cen.'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+// ============================================================================
+// SEKCJA A — HISTORIA CEN
+// ============================================================================
+
+// Treść adrice_offer_history_scraper.js zakodowana w Base64 (żeby uniknąć problemów z
+// escapowaniem znaków specjalnych HTML/JS przy osadzaniu) — do skopiowania jednym kliknięciem.
+const OFFER_HISTORY_SCRAPER_B64 = "LyoqCiAqIEFkUmljZSBPZmZlciBIaXN0b3J5IFNjcmFwZXIgZGxhIHN5c3RlbXUgSW52b2ljaW5nIChGYXphIDQg4oCUIHJlY29uY2lsaWF0aW9uLmh0bWwpCiAqIFdrbGVqIHRlbiBrb2QgZG8ga29uc29saSBwcnplZ2zEhWRhcmtpIG5hIHN0cm9uaWUgeiBsaXN0xIUgb2ZlcnQgQWRSaWNlIChucC4gL2VuL29mZmVycykKICoKICogRGxhIGthxbxkZWogb2ZlcnR5IHBvYmllcmEgRFdJRSByemVjenk6CiAqIDEuIFBlxYJuxIUgaGlzdG9yacSZIFpNSUFOIChlbmRwb2ludCAvZW4vZXZlbnRzL29mZmVyL3tpZH0sIHRlbiBzYW0gY28gcHJ6eWNpc2sKICogICAgIkFjdGlvbnMgLT4gSGlzdG9yeSIgbmEgc3Ryb25pZSBlZHljamkpIOKAlCB3eWNpxIVnYSB6IG9waXPDs3cgem1pYW55IFBheW91dCAvIENQQSAvCiAqICAgIEFkdmVydGlzZXIgRmVlIC8gTmF0aXZlIEFkdiBGZWUgd3JheiB6IERPS8WBQUROxIQgZGF0xIUgaSBnb2R6aW7EhS4gSWdub3J1amUgd3Bpc3kKICogICAgZG90eWN6xIVjZSB3ecWCxIVjem5pZSAiQ3VzdG9tIFBPcyIgKGluZHl3aWR1YWxuZSBzdGF3a2kgZGxhIGtvbmtyZXRueWNoIGFmaWxpYW50w7N3KSDigJQKICogICAgdG8gbmllIGplc3QgZG9tecWbbG5hIHN0YXdrYSBzdG9zb3dhbmEgZG8gend5a8WCeWNoIGxlYWTDs3cuCiAqIDIuIEJJRcW7xIRDRSB3YXJ0b8WbY2kgemUgc3Ryb255IGVkeWNqaSAoL2VuL29mZmVycy97aWR9L2VkaXQsIHRhayBqYWsgYWRyaWNlX3NjcmFwZXIuanMpIOKAlAogKiAgICBwb3RyemVibmUgamFrbyBwdW5rdCBvZG5pZXNpZW5pYSBkbGEgcMOzbCwga3TDs3JlIE5JR0RZIHNpxJkgbmllIHptaWVuacWCeSAod2nEmWMgbmlnZHkgbmllCiAqICAgIHBvamF3acSFIHNpxJkgdyBoaXN0b3JpaSB6bWlhbikg4oCUIGJleiB0ZWdvIHRha2llIHBvbGUgYnnFgm9ieSBixYLEmWRuaWUgbGljem9uZSBqYWtvIDDigqwuCiAqCiAqIFd5bmlrb3d5IENTViAoT2ZmZXJfSUQ7RmllbGQ7T2xkX1ZhbHVlO05ld19WYWx1ZTtDaGFuZ2VkX0F0O1NjcmFwZWRfQXQpIHdncmFqIHcgbmFyesSZZHppdQogKiByZWNvbmNpbGlhdGlvbi5odG1sLCBTZWtjamEgQSwgcHJhd3kgZHJvcHpvbmUgIkRva8WCYWRuYSBoaXN0b3JpYSBjZW4iLgogKi8KCihhc3luYyAoKSA9PiB7CiAgICBjb25zb2xlLmxvZygi8J+agCBTdGFydCBTY3JhcGVyYSBIaXN0b3JpaSBDZW4gQWRSaWNlIChJbnZvaWNpbmcpLi4uIik7CgogICAgbGV0IHRhYmxlID0gZG9jdW1lbnQucXVlcnlTZWxlY3RvcignI3RhYmxlX29mZmVycycpIHx8IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJyNvZmZlcnNUYWJsZScpIHx8IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoJ3RhYmxlLnRhYmxlJyk7CiAgICBpZiAoIXRhYmxlKSB7CiAgICAgICAgY29uc29sZS5lcnJvcigi4p2MIE5pZSB6bmFsZXppb25vIHRhYmVsaSBvZmVydCEgVXJ1Y2hvbSB0ZW4gc2tyeXB0IG5hIHN0cm9uaWUgL2VuL29mZmVycy4iKTsKICAgICAgICByZXR1cm47CiAgICB9CgogICAgY29uc3QgdGFyZ2V0QWR2ZXJ0aXNlcnMgPSBbIlRyZW5kaVN1cHBseSIsICJFdXJvRmxleCIsICJTbWFydE1lZGlhU29sdmluZyJdOwoKICAgIGxldCByb3dzID0gdGFibGUucXVlcnlTZWxlY3RvckFsbCgndGJvZHkgdHInKTsKICAgIGxldCBvZmZlcnNUb1NjYW4gPSBbXTsKCiAgICByb3dzLmZvckVhY2gocm93ID0+IHsKICAgICAgICBsZXQgYWR2Q2VsbCA9IHJvdy5xdWVyeVNlbGVjdG9yKCd0ZDpudGgtY2hpbGQoMyknKSB8fCByb3cucXVlcnlTZWxlY3RvcigndGQ6bnRoLWNoaWxkKDUpJyk7CiAgICAgICAgbGV0IGFkdk5hbWUgPSBhZHZDZWxsPy5pbm5lclRleHQudHJpbSgpIHx8ICIiOwogICAgICAgIGxldCBvZmZlcklkID0gcm93LnF1ZXJ5U2VsZWN0b3IoJ3RkOm50aC1jaGlsZCgxKScpPy5pbm5lclRleHQudHJpbSgpOwoKICAgICAgICBpZiAob2ZmZXJJZCAmJiAhaXNOYU4ob2ZmZXJJZCkgJiYgdGFyZ2V0QWR2ZXJ0aXNlcnMuc29tZSh0ID0+IGFkdk5hbWUuaW5jbHVkZXModCkpKSB7CiAgICAgICAgICAgIG9mZmVyc1RvU2Nhbi5wdXNoKHsKICAgICAgICAgICAgICAgIGlkOiBvZmZlcklkLAogICAgICAgICAgICAgICAgaGlzdG9yeVVybDogYC9lbi9ldmVudHMvb2ZmZXIvJHtvZmZlcklkfWAsCiAgICAgICAgICAgICAgICBlZGl0VXJsOiBgL2VuL29mZmVycy8ke29mZmVySWR9L2VkaXRgCiAgICAgICAgICAgIH0pOwogICAgICAgIH0KICAgIH0pOwoKICAgIGlmIChvZmZlcnNUb1NjYW4ubGVuZ3RoID09PSAwKSB7CiAgICAgICAgY29uc29sZS5lcnJvcigi4p2MIE5pZSB6bmFsZXppb25vIMW8YWRueWNoIG9mZXJ0IHcgdGFiZWxpLiIpOwogICAgICAgIHJldHVybjsKICAgIH0KCiAgICBjb25zb2xlLmxvZyhg8J+UjSBabmFsZXppb25vICR7b2ZmZXJzVG9TY2FuLmxlbmd0aH0gb2ZlcnQuIFBvYmllcmFtIGhpc3RvcmnEmSB6bWlhbiArIGJpZcW8xIVjZSB3YXJ0b8WbY2kgZGxhIGthxbxkZWouLi5gKTsKCiAgICAvLyBSb3pwb3puYXdhbmUgZXR5a2lldHkgcMOzbCAoIjxMYWJlbD4gY2hhbmdlZCBmcm9tIOKCrFggdG8g4oKsWSIpIC0+IG5hendhIHBvbGEgdyBDU1YuCiAgICBjb25zdCBGSUVMRF9NQVAgPSBbCiAgICAgICAgeyBsYWJlbDogJ1BheW91dCcsIGZpZWxkOiAncGF5b3V0JyB9LAogICAgICAgIHsgbGFiZWw6ICdDUEEnLCBmaWVsZDogJ2NwYScgfSwKICAgICAgICB7IGxhYmVsOiAnQWR2ZXJ0aXNlciBbRmZdZWUnLCBmaWVsZDogJ2FkdmVydGlzZXJGZWUnIH0sCiAgICAgICAgeyBsYWJlbDogJ05hdGl2ZVxccyooPzpBZHYoPzplcnRpc2luZyk/KT9cXHMqW0ZmXWVlJywgZmllbGQ6ICduYXRpdmVBZHZGZWUnIH0sCiAgICBdOwogICAgLy8gT2xkX1ZhbHVlIGRvcHVzemN6YSBQVVNUxIQgd2FydG/Fm8SHIChbXGQuLF0qLCBuaWUgKykg4oCUIEFkUmljZSBsb2d1amUgdGXFvCB3cHJvd2FkemVuaWUgb3DFgmF0eQogICAgLy8gIm9kIHplcmEiIChucC4gIk5hdGl2ZSBmZWUgY2hhbmdlZCBmcm9tICB0byAxIiksIGEgdGFraSB3cGlzIGplc3QgcsOzd25pZSB3YcW8bnkgamFrIHp3eWvFgmEKICAgIC8vIHptaWFuYSBsaWN6YmEtPmxpY3piYTogYmV6IG5pZWdvIGFwbGlrYWNqYSB6YWvFgmFkYSBixYLEmWRuaWUsIMW8ZSBvcMWCYXRhIGJ5xYJhIHRha2Egc2FtYSAib2QKICAgIC8vIHphd3N6ZSIsIHphbWlhc3Qgb2QgZG9rxYJhZG5laiBkYXR5IGplaiBmYWt0eWN6bmVnbyB3cHJvd2FkemVuaWEuCiAgICBjb25zdCBHRU5FUklDX0NIQU5HRV9SRSA9IC8oW0EtWmEtel1bQS1aYS16XHNdKj8pIGNoYW5nZWQgZnJvbVxzKuKCrD9ccyooW1xkLixdKilccyp0b1xzKuKCrD9ccyooW1xkLixdKykvZ2k7CiAgICBjb25zdCBDT01QT05FTlRfRklFTERTID0gWydwYXlvdXQnLCAnY3BhJywgJ2FkdmVydGlzZXJGZWUnLCAnbmF0aXZlQWR2RmVlJ107CiAgICAvLyBTZW50aW5lbDogIndhcnRvxZvEhyB6bmFuYSB6IGJpZcW8xIVjZWdvIHNjcmFwYSwgYWxlIG5pZSB6bmFteSDFvGFkbmVqIHdjemXFm25pZWpzemVqIHptaWFueQogICAgLy8gZGxhIHRlZ28gcG9sYSIgLT4gdHJha3R1amVteSBqYWtvIG9ib3dpxIV6dWrEhWPEhSBvZCB6YXdzemUgKGFwbGlrYWNqYSBvem5hY3p5IHRvIGpha28KICAgIC8vIHBld25vxZvEhyAncGFydGlhbCcsIGEgbmllICdleGFjdCcsIGJvIHRvIHphxYJvxbxlbmllLCBuaWUgcG90d2llcmR6b25hIHptaWFuYSkuCiAgICBjb25zdCBCQVNFTElORV9TRU5USU5FTF9EQVRFID0gJzE5NzAtMDEtMDFUMDA6MDA6MDAnOwoKICAgIGZ1bmN0aW9uIHBhcnNlTnVtKHN0cikgewogICAgICAgIGlmICghc3RyKSByZXR1cm4gbnVsbDsKICAgICAgICBsZXQgdiA9IHBhcnNlRmxvYXQoU3RyaW5nKHN0cikucmVwbGFjZSgvXHMrL2csICcnKS5yZXBsYWNlKCcsJywgJy4nKSk7CiAgICAgICAgcmV0dXJuIGlzTmFOKHYpID8gbnVsbCA6IHY7CiAgICB9CiAgICBmdW5jdGlvbiBtYXBMYWJlbFRvRmllbGQobGFiZWwpIHsKICAgICAgICBjb25zdCBjbGVhbiA9IGxhYmVsLnRyaW0oKTsKICAgICAgICBmb3IgKGNvbnN0IHsgbGFiZWw6IHBhdHRlcm4sIGZpZWxkIH0gb2YgRklFTERfTUFQKSB7CiAgICAgICAgICAgIGlmIChuZXcgUmVnRXhwKCdeJyArIHBhdHRlcm4gKyAnJCcsICdpJykudGVzdChjbGVhbikpIHJldHVybiBmaWVsZDsKICAgICAgICB9CiAgICAgICAgcmV0dXJuIG51bGw7CiAgICB9CgogICAgbGV0IHNjcmFwZWRBdElTTyA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgIGxldCBjc3ZSb3dzID0gW107CiAgICBsZXQgdW5yZWNvZ25pemVkTGFiZWxzID0gbmV3IFNldCgpOwogICAgbGV0IHByb2Nlc3NlZCA9IDA7CiAgICBsZXQgb2ZmZXJzV2l0aE5vSGlzdG9yeSA9IDA7CiAgICBsZXQgb2ZmZXJzV2l0aEZldGNoRXJyb3IgPSAwOwogICAgbGV0IGJhc2VsaW5lUm93c0FkZGVkID0gMDsKCiAgICBhc3luYyBmdW5jdGlvbiBmZXRjaE9mZmVyKG9mZmVyKSB7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgLy8g4pSA4pSAIDEuIEhpc3RvcmlhIHptaWFuIOKUgOKUgAogICAgICAgICAgICBsZXQgaGlzdG9yeVJlc3BvbnNlID0gYXdhaXQgZmV0Y2gob2ZmZXIuaGlzdG9yeVVybCk7CiAgICAgICAgICAgIGxldCBoaXN0b3J5SHRtbCA9IGF3YWl0IGhpc3RvcnlSZXNwb25zZS50ZXh0KCk7CiAgICAgICAgICAgIGxldCBkb2MgPSBuZXcgRE9NUGFyc2VyKCkucGFyc2VGcm9tU3RyaW5nKGhpc3RvcnlIdG1sLCAndGV4dC9odG1sJyk7CiAgICAgICAgICAgIGxldCBoaXN0b3J5Um93cyA9IGRvYy5xdWVyeVNlbGVjdG9yQWxsKCcjaGlzdG9yeVRhYmxlIHRib2R5IHRyJyk7CiAgICAgICAgICAgIGlmIChoaXN0b3J5Um93cy5sZW5ndGggPT09IDApIG9mZmVyc1dpdGhOb0hpc3RvcnkrKzsKCiAgICAgICAgICAgIGxldCBmaWVsZHNXaXRoSGlzdG9yeSA9IG5ldyBTZXQoKTsKCiAgICAgICAgICAgIGhpc3RvcnlSb3dzLmZvckVhY2godHIgPT4gewogICAgICAgICAgICAgICAgbGV0IGNlbGxzID0gdHIucXVlcnlTZWxlY3RvckFsbCgndGQnKTsKICAgICAgICAgICAgICAgIGlmIChjZWxscy5sZW5ndGggPCAzKSByZXR1cm47CgogICAgICAgICAgICAgICAgbGV0IGRhdGVSYXcgPSBjZWxsc1swXS50ZXh0Q29udGVudC50cmltKCk7IC8vICJZWVlZLU1NLUREIEhIOk1NOlNTIgogICAgICAgICAgICAgICAgbGV0IGRlc2NyaXB0aW9uID0gY2VsbHNbMl0udGV4dENvbnRlbnQ7IC8vIHRleHRDb250ZW50ID0gYXV0by1kZWtvZG93YW5pZSBlbmNqaSBIVE1MCgogICAgICAgICAgICAgICAgaWYgKCEvXlxkezR9LVxkezJ9LVxkezJ9IFxkezJ9OlxkezJ9OlxkezJ9JC8udGVzdChkYXRlUmF3KSkgcmV0dXJuOwogICAgICAgICAgICAgICAgbGV0IGNoYW5nZWRBdElTTyA9IGRhdGVSYXcucmVwbGFjZSgnICcsICdUJyk7CgogICAgICAgICAgICAgICAgbGV0IG1hdGNoOwogICAgICAgICAgICAgICAgR0VORVJJQ19DSEFOR0VfUkUubGFzdEluZGV4ID0gMDsKICAgICAgICAgICAgICAgIHdoaWxlICgobWF0Y2ggPSBHRU5FUklDX0NIQU5HRV9SRS5leGVjKGRlc2NyaXB0aW9uKSkgIT09IG51bGwpIHsKICAgICAgICAgICAgICAgICAgICBsZXQgWywgbGFiZWwsIG9sZFJhdywgbmV3UmF3XSA9IG1hdGNoOwogICAgICAgICAgICAgICAgICAgIGxldCBmaWVsZCA9IG1hcExhYmVsVG9GaWVsZChsYWJlbCk7CiAgICAgICAgICAgICAgICAgICAgaWYgKCFmaWVsZCkgeyB1bnJlY29nbml6ZWRMYWJlbHMuYWRkKGxhYmVsLnRyaW0oKSk7IGNvbnRpbnVlOyB9CiAgICAgICAgICAgICAgICAgICAgbGV0IG9sZFZhbCA9IHBhcnNlTnVtKG9sZFJhdyk7CiAgICAgICAgICAgICAgICAgICAgbGV0IG5ld1ZhbCA9IHBhcnNlTnVtKG5ld1Jhdyk7CiAgICAgICAgICAgICAgICAgICAgaWYgKG5ld1ZhbCA9PT0gbnVsbCkgY29udGludWU7CgogICAgICAgICAgICAgICAgICAgIGZpZWxkc1dpdGhIaXN0b3J5LmFkZChmaWVsZCk7CiAgICAgICAgICAgICAgICAgICAgY3N2Um93cy5wdXNoKGAke29mZmVyLmlkfTske2ZpZWxkfTske29sZFZhbCAhPT0gbnVsbCA/IG9sZFZhbCA6ICcnfTske25ld1ZhbH07JHtjaGFuZ2VkQXRJU099OyR7c2NyYXBlZEF0SVNPfWApOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9KTsKCiAgICAgICAgICAgIC8vIOKUgOKUgCAyLiBCaWXFvMSFY2Ugd2FydG/Fm2NpICh0eWxrbyBkbGEgcMOzbCBCRVogxbxhZG5laiBoaXN0b3JpaSB6bWlhbikg4pSA4pSACiAgICAgICAgICAgIGxldCBtaXNzaW5nRmllbGRzID0gQ09NUE9ORU5UX0ZJRUxEUy5maWx0ZXIoZiA9PiAhZmllbGRzV2l0aEhpc3RvcnkuaGFzKGYpKTsKICAgICAgICAgICAgaWYgKG1pc3NpbmdGaWVsZHMubGVuZ3RoID4gMCkgewogICAgICAgICAgICAgICAgbGV0IGVkaXRSZXNwb25zZSA9IGF3YWl0IGZldGNoKG9mZmVyLmVkaXRVcmwpOwogICAgICAgICAgICAgICAgbGV0IGVkaXRIdG1sID0gYXdhaXQgZWRpdFJlc3BvbnNlLnRleHQoKTsKCiAgICAgICAgICAgICAgICBsZXQgYmFzZVBheW91dFN0ciA9IChlZGl0SHRtbC5tYXRjaCgvaWQ9Im9mZmVyX3BheW91dCJbXj5dKnZhbHVlPSIoW14iXSopIi8pIHx8IFtudWxsLCAiMCJdKVsxXTsKICAgICAgICAgICAgICAgIGxldCBiYXNlUGF5b3V0ID0gcGFyc2VOdW0oYmFzZVBheW91dFN0cikgfHwgMDsKICAgICAgICAgICAgICAgIGxldCBjcGFWYWwgPSAwOwogICAgICAgICAgICAgICAgaWYgKGJhc2VQYXlvdXQgPT09IDApIHsKICAgICAgICAgICAgICAgICAgICBsZXQgY3BhU3RyID0gKGVkaXRIdG1sLm1hdGNoKC9pZD0ib2ZmZXJfY3BhIltePl0qdmFsdWU9IihbXiJdKikiLykgfHwgW251bGwsICIwIl0pWzFdOwogICAgICAgICAgICAgICAgICAgIGNwYVZhbCA9IHBhcnNlTnVtKGNwYVN0cikgfHwgMDsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGxldCBhZHZTdHIgPSAoZWRpdEh0bWwubWF0Y2goL2lkPSJvZmZlcl9hZHZlcnRpc2VyRmVlIltePl0qdmFsdWU9IihbXiJdKikiLykgfHwgW251bGwsICIwIl0pWzFdOwogICAgICAgICAgICAgICAgbGV0IGFkdkZlZSA9IHBhcnNlTnVtKGFkdlN0cikgfHwgMDsKICAgICAgICAgICAgICAgIGxldCBuYXRpdmVTdHIgPSAoZWRpdEh0bWwubWF0Y2goL2lkPSJvZmZlcl9uYXRpdmVBZHZGZWUiW14+XSp2YWx1ZT0iKFteIl0qKSIvKSB8fCBbbnVsbCwgIjAiXSlbMV07CiAgICAgICAgICAgICAgICBsZXQgbmF0aXZlRmVlID0gcGFyc2VOdW0obmF0aXZlU3RyKSB8fCAwOwoKICAgICAgICAgICAgICAgIGxldCBjdXJyZW50VmFsdWVzID0geyBwYXlvdXQ6IGJhc2VQYXlvdXQsIGNwYTogY3BhVmFsLCBhZHZlcnRpc2VyRmVlOiBhZHZGZWUsIG5hdGl2ZUFkdkZlZTogbmF0aXZlRmVlIH07CgogICAgICAgICAgICAgICAgbWlzc2luZ0ZpZWxkcy5mb3JFYWNoKGZpZWxkID0+IHsKICAgICAgICAgICAgICAgICAgICAvLyBQb21pamFteSBwb2xhLCBrdMOzcmUgaSB0YWsgc8SFIHplcm93ZS9uaWV1xbx5d2FuZSAobnAuIGNwYSBnZHkgb2ZlcnRhIGplc3QgbmEgcGF5b3V0KSDigJQKICAgICAgICAgICAgICAgICAgICAvLyBuaWUgbWEgc2Vuc3UgZG9kYXdhxIcgc3p0dWN6bmVnbyB3cGlzdSAiMCBvZCB6YXdzemUiLgogICAgICAgICAgICAgICAgICAgIGlmICghY3VycmVudFZhbHVlc1tmaWVsZF0pIHJldHVybjsKICAgICAgICAgICAgICAgICAgICBjc3ZSb3dzLnB1c2goYCR7b2ZmZXIuaWR9OyR7ZmllbGR9Ozske2N1cnJlbnRWYWx1ZXNbZmllbGRdfTske0JBU0VMSU5FX1NFTlRJTkVMX0RBVEV9OyR7c2NyYXBlZEF0SVNPfWApOwogICAgICAgICAgICAgICAgICAgIGJhc2VsaW5lUm93c0FkZGVkKys7CiAgICAgICAgICAgICAgICB9KTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgcHJvY2Vzc2VkKys7CiAgICAgICAgICAgIGlmIChwcm9jZXNzZWQgJSA1MCA9PT0gMCB8fCBwcm9jZXNzZWQgPT09IG9mZmVyc1RvU2Nhbi5sZW5ndGgpIHsKICAgICAgICAgICAgICAgIGNvbnNvbGUubG9nKGBQcnpldHdvcnpvbm8ganXFvDogJHtwcm9jZXNzZWR9IHogJHtvZmZlcnNUb1NjYW4ubGVuZ3RofSBvZmVydCAoemVicmFubyAke2NzdlJvd3MubGVuZ3RofSB3aWVyc3p5KS4uLmApOwogICAgICAgICAgICB9CiAgICAgICAgfSBjYXRjaCAoZSkgewogICAgICAgICAgICBvZmZlcnNXaXRoRmV0Y2hFcnJvcisrOwogICAgICAgICAgICBjb25zb2xlLmVycm9yKGDinYwgQsWCxIVkIHByenkgb2ZlcmNpZSAke29mZmVyLmlkfTpgLCBlKTsKICAgICAgICB9CiAgICB9CgogICAgY29uc3QgQ0hVTktfU0laRSA9IDMwOyAvLyBEbyAyIHJlcXVlc3TDs3cgbmEgb2ZlcnTEmSAoaGlzdG9yaWEgKyBlZGl0KSDigJQgb3N0cm/FvG5hIHdzcMOzxYJiaWXFvG5vxZvEhwoKICAgIGZvciAobGV0IGkgPSAwOyBpIDwgb2ZmZXJzVG9TY2FuLmxlbmd0aDsgaSArPSBDSFVOS19TSVpFKSB7CiAgICAgICAgbGV0IGNodW5rID0gb2ZmZXJzVG9TY2FuLnNsaWNlKGksIGkgKyBDSFVOS19TSVpFKTsKICAgICAgICBhd2FpdCBQcm9taXNlLmFsbChjaHVuay5tYXAob2ZmZXIgPT4gZmV0Y2hPZmZlcihvZmZlcikpKTsKICAgIH0KCiAgICBjb25zb2xlLmxvZyhg4pyFIEdPVE9XRSEgWmVicmFubyAke2NzdlJvd3MubGVuZ3RofSB3aWVyc3p5ICh3IHR5bSAke2Jhc2VsaW5lUm93c0FkZGVkfSB3cGlzw7N3IGJhem93eWNoICJiZXogaGlzdG9yaWkiKSB6ICR7b2ZmZXJzVG9TY2FuLmxlbmd0aH0gb2ZlcnQuYCk7CiAgICBjb25zb2xlLmxvZyhgICAgT2ZlcnR5IGJleiDFvGFkbmVqIGhpc3RvcmlpIHptaWFuOiAke29mZmVyc1dpdGhOb0hpc3Rvcnl9LiBCxYLEmWR5IHBvYmllcmFuaWE6ICR7b2ZmZXJzV2l0aEZldGNoRXJyb3J9LmApOwogICAgaWYgKHVucmVjb2duaXplZExhYmVscy5zaXplID4gMCkgewogICAgICAgIGNvbnNvbGUud2Fybihg4pqg77iPIFpuYWxlemlvbm8gTklFUk9aUE9aTkFORSBldHlraWV0eSB6bWlhbiAocG9taW5pxJl0ZSwgbmllIHRyYWZpxYJ5IGRvIENTVikg4oCUIGplxZtsaSB0byBjb8WbIGlzdG90bmVnbyAobnAuIGlubmEgbmF6d2EgcG9sYSBvcMWCYXR5KSwgemfFgm/FmyB0bzpgLCBbLi4udW5yZWNvZ25pemVkTGFiZWxzXSk7CiAgICB9CgogICAgbGV0IGNzdkNvbnRlbnQgPSAiT2ZmZXJfSUQ7RmllbGQ7T2xkX1ZhbHVlO05ld19WYWx1ZTtDaGFuZ2VkX0F0O1NjcmFwZWRfQXRcbiIgKyBjc3ZSb3dzLmpvaW4oIlxuIikgKyAiXG4iOwoKICAgIGNvbnN0IHN0YW1wID0gc2NyYXBlZEF0SVNPLnJlcGxhY2UoL1stOl0vZywgJycpLnJlcGxhY2UoL1wuLisvLCAnJykucmVwbGFjZSgnVCcsICdfJyk7CiAgICBjb25zdCBibG9iID0gbmV3IEJsb2IoW2NzdkNvbnRlbnRdLCB7IHR5cGU6ICd0ZXh0L2NzdjtjaGFyc2V0PXV0Zi04OycgfSk7CiAgICBjb25zdCBsaW5rID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgiYSIpOwogICAgY29uc3QgdXJsID0gVVJMLmNyZWF0ZU9iamVjdFVSTChibG9iKTsKICAgIGxpbmsuc2V0QXR0cmlidXRlKCJocmVmIiwgdXJsKTsKICAgIGxpbmsuc2V0QXR0cmlidXRlKCJkb3dubG9hZCIsIGBhZHJpY2Vfb2ZmZXJfaGlzdG9yeV8ke3N0YW1wfS5jc3ZgKTsKICAgIGxpbmsuc3R5bGUudmlzaWJpbGl0eSA9ICdoaWRkZW4nOwogICAgZG9jdW1lbnQuYm9keS5hcHBlbmRDaGlsZChsaW5rKTsKICAgIGxpbmsuY2xpY2soKTsKICAgIGRvY3VtZW50LmJvZHkucmVtb3ZlQ2hpbGQobGluayk7Cn0pKCk7Cg==";
+
+function copyOfferHistoryScraper() {
+    try {
+        const binary = atob(OFFER_HISTORY_SCRAPER_B64);
+        const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+        const code = new TextDecoder('utf-8').decode(bytes);
+        navigator.clipboard.writeText(code).then(() => {
+            showNotif('📋 Skrypt scrapera historii cen skopiowany! Wklej w konsoli (F12) na stronie /en/offers w AdRice.', 5000);
+        });
+    } catch (e) {
+        alert('Błąd dekodowania skryptu scrapera: ' + e.message);
+    }
+}
+
+// ============================================================================
+// OŚ CZASU CEN — WARTOŚCI zawsze z realnie zafakturowanych stawek (logi Hub-a),
+// DATY granic zmian z historii AdRice / snapshotu (Sekcja A). Rekonstrukcja WARTOŚCI
+// z sumowania komponentów oferty (Payout+Advertiser Fee+Native Adv Fee) została
+// porzucona jako z natury krucha — udowodnione na #3234, gdzie scraper przegapił
+// jeden rodzaj zmiany i dawał błąd +1€ na każdym poziomie ceny mimo poprawnej daty
+// granicy. Szczegóły decyzji: RECONCILIATION_SESSION_LOG.md, sekcja 4.
+// ============================================================================
+
+function getDateGranularity() {
+    const el = document.getElementById('dateGranularity');
+    return el ? el.value : 'day'; // 'day' | 'exact'
+}
+// Faktury liczone są za całe zakończone dni — domyślnie porównujemy datę leada z datą zmiany
+// ceny na poziomie DNIA (cały dzień zmiany = już nowa cena), niezależnie od godziny obu zdarzeń.
+function truncateForGranularity(date) {
+    return getDateGranularity() === 'day' ? startOfDay(date) : date;
+}
+
+// Wszystkie zafakturowane obserwacje ceny dla danej oferty, ze WSZYSTKICH znanych miesięcy,
+// posortowane chronologicznie. Jedyne źródło WARTOŚCI cen w całym narzędziu.
+function getInvoicedObservations(offerId) {
+    const obs = [];
+    getAllKnownMonthKeys().forEach(mk => {
+        getMonthLogs(mk).forEach(log => {
+            const ts = parseLogTimestamp(log.timestamp);
+            if (!ts) return;
+            (log.items || []).forEach(it => {
+                if (it.id !== offerId) return;
+                obs.push({ price: it.price, timestamp: ts, invoiceNumber: log.invoiceNumber, mode: log.mode, monthKey: mk });
+            });
+        });
+    });
+    obs.sort((a, b) => a.timestamp - b.timestamp);
+    return obs;
+}
+
+// Zwija chronologiczne obserwacje w kolejne, RÓŻNE poziomy cenowe (pomija powtórzenia tej samej ceny).
+function getInvoicedPriceSegments(offerId) {
+    const obs = getInvoicedObservations(offerId);
+    if (obs.length === 0) return [];
+    const segments = [];
+    let cur = { price: obs[0].price, firstObservedAt: obs[0].timestamp, lastObservedAt: obs[0].timestamp };
+    for (let i = 1; i < obs.length; i++) {
+        if (Math.abs(obs[i].price - cur.price) > 0.001) {
+            segments.push(cur);
+            cur = { price: obs[i].price, firstObservedAt: obs[i].timestamp, lastObservedAt: obs[i].timestamp };
+        } else {
+            cur.lastObservedAt = obs[i].timestamp;
+        }
+    }
+    segments.push(cur);
+    return segments;
+}
+
+// Kandydackie daty zmian z DOKŁADNEJ historii AdRice (Sekcja A, prawy dropzone) — używane
+// WYŁĄCZNIE jako źródło daty granicy, nigdy wartości. Pomija BASELINE_SENTINEL_DATE (to punkt
+// odniesienia dla pól bez zaobserwowanej historii, nie realna, potwierdzona zmiana).
+function getHistoryChangeDates(offerId) {
+    const offer = priceHistory.offers[offerId];
+    if (!offer) return [];
+    const componentFields = ['payout', 'cpa', 'advertiserFee', 'nativeAdvFee'];
+    const dates = new Set();
+    (offer.timeline || []).forEach(e => {
+        if (!componentFields.includes(e.field)) return;
+        if (e.changedAt === BASELINE_SENTINEL_DATE) return;
+        dates.add(e.changedAt);
+    });
+    return [...dates].map(d => new Date(d)).sort((a, b) => a - b);
+}
+// Daty wykrycia zmiany przez cotygodniowy snapshot cen (Sekcja A, lewy dropzone) — to data
+// uploadu, w którym zauważono inną cenę niż poprzednio, NIE data faktycznej zmiany. Gorsza
+// pewność niż dokładna historia AdRice, ale lepsza niż czysty środek okna.
+function getSnapshotChangeDates(offerId) {
+    const offer = priceHistory.offers[offerId];
+    if (!offer) return [];
+    return (offer.timeline || [])
+        .filter(e => e.field === 'totalPayout' && e.source === 'snapshot_diff')
+        .map(e => new Date(e.changedAt))
+        .sort((a, b) => a - b);
+}
+// Surowy timeline wpisów 'totalPayout' ze snapshotów — potrzebny tylko do diffowania kolejnych
+// uploadów w mergeSnapshotDiff (czy cena zmieniła się względem ostatniego znanego snapshotu).
+function getSnapshotTimeline(offerId) {
+    const offer = priceHistory.offers[offerId];
+    if (!offer) return [];
+    return (offer.timeline || [])
+        .filter(e => e.field === 'totalPayout' && e.source === 'snapshot_diff')
+        .slice()
+        .sort((a, b) => new Date(a.changedAt) - new Date(b.changedAt));
+}
+
+// Dla przejścia między dwoma sąsiednimi, realnie zaobserwowanymi poziomami cen, znajduje datę
+// granicy w malejącej kolejności pewności: dokładna historia AdRice -> snapshot diff -> środek okna.
+function findBoundaryDate(offerId, prevSegment, nextSegment) {
+    const windowStart = prevSegment.lastObservedAt;
+    const windowEnd = nextSegment.firstObservedAt;
+
+    const historyDates = getHistoryChangeDates(offerId).filter(d => d > windowStart && d <= windowEnd);
+    if (historyDates.length > 0) return { changedAt: historyDates[0], confidence: 'exact' };
+
+    const snapshotDates = getSnapshotChangeDates(offerId).filter(d => d > windowStart && d <= windowEnd);
+    if (snapshotDates.length > 0) return { changedAt: snapshotDates[0], confidence: 'inferred' };
+
+    const mid = new Date((windowStart.getTime() + windowEnd.getTime()) / 2);
+    return { changedAt: mid, confidence: 'approx' };
+}
+
+let _priceTimelineCache = {};
+function invalidatePriceTimelineCache() { _priceTimelineCache = {}; }
+
+// Pełna oś czasu cen dla oferty: WARTOŚCI z realnych faktur (getInvoicedPriceSegments),
+// DATY granic z findBoundaryDate. Cache'owane per offerId w ramach jednej sesji strony —
+// unieważniane przy każdej zmianie danych wejściowych (patrz invalidatePriceTimelineCache).
+function getRealPriceTimeline(offerId) {
+    if (_priceTimelineCache[offerId]) return _priceTimelineCache[offerId];
+    const segments = getInvoicedPriceSegments(offerId);
+    let timeline = [];
+    if (segments.length > 0) {
+        timeline.push({ changedAt: segments[0].firstObservedAt, value: segments[0].price, confidence: 'exact' });
+        for (let i = 1; i < segments.length; i++) {
+            const boundary = findBoundaryDate(offerId, segments[i - 1], segments[i]);
+            timeline.push({ changedAt: boundary.changedAt, value: segments[i].price, confidence: boundary.confidence });
+        }
+    }
+    _priceTimelineCache[offerId] = timeline;
+    return timeline;
+}
+
+function getAllInvoicedOfferIds() {
+    const ids = new Set();
+    getAllKnownMonthKeys().forEach(mk => {
+        getMonthLogs(mk).forEach(log => {
+            (log.items || []).forEach(it => { if (it.id) ids.add(it.id); });
+        });
+    });
+    return [...ids];
+}
+
+// Oferty, dla których realna cena w fakturach zmieniła się co najmniej raz, ale dla ŻADNEGO
+// źródła w Sekcji A (ani dokładna historia AdRice, ani snapshot) nie znaleziono daty w oknie
+// między obserwacjami — data granicy jest wtedy czystym przybliżeniem (środek okna).
+function computeBoundaryGaps() {
+    const gaps = [];
+    getAllInvoicedOfferIds().forEach(offerId => {
+        const segments = getInvoicedPriceSegments(offerId);
+        for (let i = 1; i < segments.length; i++) {
+            const boundary = findBoundaryDate(offerId, segments[i - 1], segments[i]);
+            if (boundary.confidence === 'approx') {
+                gaps.push({
+                    offerId, oldPrice: segments[i - 1].price, newPrice: segments[i].price,
+                    windowStart: segments[i - 1].lastObservedAt, windowEnd: segments[i].firstObservedAt,
+                    usedDate: boundary.changedAt
+                });
+            }
+        }
+    });
+    return gaps;
+}
+
+// Proste zestawienie: które oferty miały granicę zmiany ceny (w realnych fakturach) PADAJĄCĄ
+// w obrębie wybranego miesiąca — niezależnie od tego, czy Sekcja B jest wgrana. Ma pomóc szybko
+// wskazać, które oferty warto sprawdzić ręcznie (reszta miała stałą cenę przez cały miesiąc).
+function computePriceChangesInMonth(targetMonth) {
+    const { start, end } = monthBounds(targetMonth);
+    const changes = [];
+    getAllInvoicedOfferIds().forEach(offerId => {
+        const tl = getRealPriceTimeline(offerId);
+        for (let i = 1; i < tl.length; i++) {
+            const at = tl[i].changedAt;
+            if (at >= start && at <= end) {
+                changes.push({ offerId, oldPrice: tl[i - 1].value, newPrice: tl[i].value, changedAt: at, confidence: tl[i].confidence });
+            }
+        }
+    });
+    changes.sort((a, b) => a.changedAt - b.changedAt);
+    return changes;
+}
+
+function renderPriceChangesThisMonth() {
+    const container = document.getElementById('priceChangesThisMonth');
+    if (!container) return;
+    const monthSelect = document.getElementById('activeMonth');
+    if (!monthSelect || !monthSelect.value) return;
+    const monthKey = monthSelect.value;
+    const changes = computePriceChangesInMonth(monthKey);
+
+    if (changes.length === 0) {
+        container.innerHTML = `<div class="empty-state">Brak wykrytych zmian ceny w logach faktur dla ${monthKey} — wszystkie oferty miały stałą cenę przez cały miesiąc.</div>`;
+        return;
+    }
+
+    const ids = [...new Set(changes.map(c => c.offerId))];
+    let html = `<div style="font-size:0.82rem; margin-bottom:0.75rem;">
+        <b>${ids.length}</b> ${ids.length === 1 ? 'oferta ze zmianą' : 'ofert(y) ze zmianą'} ceny w ${monthKey}:
+        ${ids.map(id => `<span class="tag tag-warn" style="margin:2px;">#${id}</span>`).join('')}
+    </div>
+    <table class="data-table"><thead><tr><th>Offer ID</th><th style="text-align:right">Stara cena</th><th style="text-align:right">Nowa cena</th><th>Data zmiany</th><th>Pewność daty</th></tr></thead><tbody>`;
+    changes.forEach(c => {
+        html += `<tr>
+            <td>#${c.offerId}</td>
+            <td style="text-align:right">${c.oldPrice.toFixed(2)} €</td>
+            <td style="text-align:right">${c.newPrice.toFixed(2)} €</td>
+            <td>${fmtDate(c.changedAt)}</td>
+            <td>${confidenceTag(c.confidence)}</td>
+        </tr>`;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+function priceAt(offerId, date) {
+    const tl = getRealPriceTimeline(offerId);
+    if (tl.length === 0) return null;
+    const cmpDate = truncateForGranularity(date);
+    let applicable = null;
+    for (const e of tl) {
+        if (truncateForGranularity(e.changedAt) <= cmpDate) applicable = e; else break;
+    }
+    if (applicable) return { value: applicable.value, confidence: applicable.confidence, changedAt: applicable.changedAt.toISOString(), source: 'invoiced-price' };
+    const earliest = tl[0];
+    return { value: earliest.value, confidence: 'assumed', changedAt: earliest.changedAt.toISOString(), source: 'fallback-earliest-known' };
+}
+
+async function onSnapshotFilesSelected(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const statEl = document.getElementById('stat-snapshot');
+    statEl.innerText = 'Przetwarzanie...';
+    const scrapedAtISO = new Date().toISOString();
+    let totalChanged = 0, totalNew = 0, totalRows = 0;
+    for (const file of fileList) {
+        const rows = await parseCSVFile(file, { delimiter: ';' });
+        totalRows += rows.length;
+        const { changedCount, newCount } = mergeSnapshotDiff(rows, scrapedAtISO);
+        totalChanged += changedCount; totalNew += newCount;
+    }
+    document.getElementById('dz-snapshot').classList.add('filled');
+    statEl.innerText = `✅ ${totalRows} ofert wczytane. Nowe: ${totalNew}, zmienione ceny: ${totalChanged}.`;
+    renderPriceHistoryCoverage();
+    renderPriceChangesThisMonth();
+    showNotif(`💶 Snapshot cen scalony: ${totalNew} nowych ofert, ${totalChanged} wykrytych zmian ceny.`);
+}
+
+function mergeSnapshotDiff(rows, scrapedAtISO) {
+    let changedCount = 0, newCount = 0;
+    rows.forEach(row => {
+        const offerId = String(row['Offer_ID'] || '').trim();
+        const name = String(row['Offer_Name'] || '').trim();
+        const payout = parseEuroDecimal(row['Payout']);
+        if (!offerId) return;
+
+        if (!priceHistory.offers[offerId]) priceHistory.offers[offerId] = { name, timeline: [] };
+        const offer = priceHistory.offers[offerId];
+        if (name) offer.name = name;
+
+        const tl = getSnapshotTimeline(offerId);
+        const last = tl[tl.length - 1];
+
+        if (!last) {
+            offer.timeline.push({ field: 'totalPayout', oldValue: null, newValue: payout, changedAt: scrapedAtISO, source: 'snapshot_diff', capturedAt: scrapedAtISO, confidence: 'inferred' });
+            newCount++;
+        } else if (Math.abs(last.newValue - payout) > 0.001) {
+            offer.timeline.push({ field: 'totalPayout', oldValue: last.newValue, newValue: payout, changedAt: scrapedAtISO, source: 'snapshot_diff', capturedAt: scrapedAtISO, confidence: 'inferred' });
+            changedCount++;
+        }
+    });
+    priceHistory.lastScrapeAt = scrapedAtISO;
+    invalidatePriceTimelineCache();
+    savePriceHistory();
+    return { changedCount, newCount };
+}
+
+async function onHistoryFilesSelected(fileList) {
+    if (!fileList || fileList.length === 0) return;
+    const statEl = document.getElementById('stat-history');
+    statEl.innerText = 'Przetwarzanie...';
+    let totalAdded = 0;
+    for (const file of fileList) {
+        const rows = await parseCSVFile(file, { delimiter: ';' });
+        totalAdded += mergeExactHistoryRows(rows);
+    }
+    document.getElementById('dz-history').classList.add('filled');
+    statEl.innerText = `✅ Wczytano ${fileList.length} plik(i), dodano ${totalAdded} nowych, dokładnych wpisów historii cen.`;
+    renderPriceHistoryCoverage();
+    renderPriceChangesThisMonth();
+    showNotif(`💶 Historia cen scalona: +${totalAdded} wpisów z ${fileList.length} plik(ów).`);
+}
+
+function mergeExactHistoryRows(rows) {
+    const scrapedAtGlobal = new Date().toISOString();
+    let added = 0;
+    rows.forEach(row => {
+        const offerId = String(row['Offer_ID'] || '').trim();
+        const field = String(row['Field'] || '').trim();
+        const oldRaw = row['Old_Value'];
+        const oldVal = (oldRaw === undefined || oldRaw === null || oldRaw === '') ? null : parseEuroDecimal(oldRaw);
+        const newVal = parseEuroDecimal(row['New_Value']);
+        const changedAt = row['Changed_At'];
+        const scrapedAt = row['Scraped_At'] || scrapedAtGlobal;
+        if (!offerId || !field || !changedAt) return;
+
+        if (!priceHistory.offers[offerId]) priceHistory.offers[offerId] = { name: '', timeline: [] };
+        const offer = priceHistory.offers[offerId];
+        const dup = (offer.timeline || []).some(e => e.field === field && e.changedAt === changedAt && e.newValue === newVal);
+        if (dup) return;
+
+        offer.timeline.push({ field, oldValue: oldVal, newValue: newVal, changedAt, source: 'adrice_history_scrape', capturedAt: scrapedAt, confidence: 'exact' });
+        added++;
+    });
+    invalidatePriceTimelineCache();
+    savePriceHistory();
+    return added;
+}
+
+// Znacznik używany przez adrice_offer_history_scraper.js dla pól bez ŻADNEJ zaobserwowanej
+// zmiany (znamy tylko bieżącą wartość) — w nowym podejściu te wpisy są ignorowane jako źródło
+// dat granic (getHistoryChangeDates je odfiltrowuje), bo nie reprezentują realnej, potwierdzonej
+// zmiany, tylko założenie "od zawsze".
+const BASELINE_SENTINEL_DATE = '1970-01-01T00:00:00';
+
+function renderPriceHistoryCoverage() {
+    const container = document.getElementById('priceHistoryCoverage');
+    const offerIds = Object.keys(priceHistory.offers || {});
+
+    let rows = offerIds.map(id => {
+        const offer = priceHistory.offers[id];
+        const historyDates = getHistoryChangeDates(id);
+        const snapshotDates = getSnapshotChangeDates(id);
+        const allDates = [...historyDates, ...snapshotDates].sort((a, b) => a - b);
+        return {
+            id, name: offer.name || '(brak nazwy)',
+            exactCount: historyDates.length,
+            snapshotCount: snapshotDates.length,
+            earliest: allDates[0] || null,
+            latest: allDates[allDates.length - 1] || null
+        };
+    }).filter(r => r.exactCount > 0 || r.snapshotCount > 0)
+      .sort((a, b) => (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0));
+
+    let html = '';
+    if (rows.length === 0) {
+        html += '<div class="empty-state">Brak danych o datach zmian cen — wgraj snapshot ofert lub dokładną historię AdRice powyżej. Wartości cen w raporcie i tak zawsze pochodzą z realnych faktur; ta sekcja tylko dostarcza daty granic między poziomami cen.</div>';
+    } else {
+        html += `<div class="stat-row">
+            <div class="stat-box"><div class="stat-label">Ofert z kandydackimi datami granic</div><div class="stat-value">${rows.length}</div></div>
+            <div class="stat-box"><div class="stat-label">Ostatnie skanowanie</div><div class="stat-value" style="font-size:0.95rem;">${priceHistory.lastScrapeAt ? fmtDate(new Date(priceHistory.lastScrapeAt)) : '—'}</div></div>
+        </div>
+        <table class="data-table"><thead><tr><th>Offer ID</th><th>Nazwa</th><th>Dokładne daty (AdRice)</th><th>Daty ze snapshotu</th><th>Najwcześniejsza</th><th>Najnowsza</th></tr></thead><tbody>`;
+        rows.slice(0, 300).forEach(r => {
+            html += `<tr>
+                <td>#${r.id}</td>
+                <td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</td>
+                <td>${r.exactCount}</td>
+                <td>${r.snapshotCount}</td>
+                <td>${r.earliest ? fmtDate(r.earliest) : '—'}</td>
+                <td>${r.latest ? fmtDate(r.latest) : '—'}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        if (rows.length > 300) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">Pokazano 300 z ${rows.length} ofert.</div>`;
+    }
+
+    const gaps = computeBoundaryGaps();
+    if (gaps.length > 0) {
+        html += `<div class="confidence-banner" style="margin-top:1.25rem;">⚠️ <b>${gaps.length} realnych zmian ceny w fakturach bez dokładnej daty granicy</b> — cena w fakturach dla tych ofert się zmieniła, ale ani dokładna historia AdRice, ani snapshot cen nie mają wpisu w oknie między fakturą ze starą a fakturą z nową ceną, więc data granicy to czyste przybliżenie (środek okna). <b>Wartości "Powinno Być" są nadal policzone z realnych stawek</b> — obniżona pewność dotyczy TYLKO tego, kiedy dokładnie leady przechodzą na nową cenę. Wgraj historię AdRice dla tych ofert, żeby to poprawić.</div>
+        <table class="data-table"><thead><tr><th>Offer ID</th><th style="text-align:right">Stara cena</th><th style="text-align:right">Nowa cena</th><th>Okno (od-do)</th><th>Użyta data (środek okna)</th></tr></thead><tbody>`;
+        gaps.slice(0, 100).forEach(g => {
+            html += `<tr><td>#${g.offerId}</td><td style="text-align:right">${g.oldPrice.toFixed(2)} €</td><td style="text-align:right">${g.newPrice.toFixed(2)} €</td><td>${fmtDate(g.windowStart)} → ${fmtDate(g.windowEnd)}</td><td>${fmtDate(g.usedDate)}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        if (gaps.length > 100) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">Pokazano 100 z ${gaps.length}.</div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function confidenceTag(c) {
+    const map = {
+        exact: ['tag-ok', 'exact'],
+        inferred: ['tag-warn', 'inferred'],
+        assumed: ['tag-danger', 'assumed'],
+        approx: ['tag-danger', 'data granicy przybliżona'],
+        'no-data': ['tag-danger', 'brak danych'],
+        'not-invoiced': ['tag-muted', 'niezafakturowane'],
+        'exact-cadence': ['tag-ok', 'cykl std.'],
+        'off-cadence': ['tag-warn', 'poza cyklem'],
+        'off-cadence-approx': ['tag-warn', 'poza cyklem (przybliż.)'],
+        cumulative: ['tag-info', 'kumulacyjny (AUTOMAT)'],
+        adjustment: ['tag-info', 'korekta salda'],
+        'cross-month-boundary': ['tag-danger', 'granica miesięcy'],
+        'legacy-account-label': ['tag-warn', 'stara etykieta konta']
+    };
+    const [cls, label] = map[c] || ['tag-muted', c];
+    return `<span class="tag ${cls}">${label}</span>`;
+}
+
+// ============================================================================
+// SEKCJA B — LEADY Z DATĄ
+// ============================================================================
+function getExcludedStatusSet() {
+    return document.getElementById('statusExcludeConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+}
+function getExcludedShipStatusSet() {
+    return document.getElementById('shipStatusExcludeConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+}
+function getShipStatusExemptSet() {
+    return document.getElementById('shipStatusExemptConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+}
+// Potwierdzony lead (Positivi): NIE ma statusu z listy wykluczeń, i NIE ma ship_status z listy
+// wykluczeń — chyba że jego status jest na liście "zwolnionych" (np. OK - Pending naturalnie
+// jeszcze nie mogło zostać wysłane, a mimo to się liczy). Reguła dostrajana empirycznie per
+// ofertę przez panel sanity-check — jeśli kolejna oferta pokaże jeszcze inny wyjątek, dopisz go
+// do odpowiedniej listy zamiast zmieniać kod.
+function isConfirmedLead(lead) {
+    if (getExcludedStatusSet().includes(lead.status)) return false;
+    const exempt = getShipStatusExemptSet().includes(lead.status);
+    if (!exempt && getExcludedShipStatusSet().includes(lead.shipStatus)) return false;
+    return true;
+}
+function getPricingDateMode() {
+    return document.getElementById('pricingDateMode').value; // 'creation' | 'confirm'
+}
+// Zwraca {date, usedFallback} — data, wg której ustalamy cenę i przynależność do miesiąca dla danego leada.
+function getPricingDate(lead) {
+    if (getPricingDateMode() === 'confirm') {
+        if (lead.confirmDate) return { date: lead.confirmDate, usedFallback: false };
+        return { date: lead.creationDate, usedFallback: true };
+    }
+    return { date: lead.creationDate, usedFallback: false };
+}
+function getSourceFilterActive() {
+    return document.getElementById('sourceFilterToggle').checked;
+}
+
+async function onAdminFileSelected(file, accountName, dzId, statId) {
+    if (!file) return;
+    const statEl = document.getElementById(statId);
+    statEl.innerText = 'Przetwarzanie...';
+    const rows = await parseCSVFile(file, { delimiter: ';' });
+    const sourceFilterActive = getSourceFilterActive();
+    let matched = 0, skippedNoOffer = 0, skippedSource = 0, skippedCountry = 0, skippedNoDate = 0;
+
+    // Usuwamy poprzednio wczytane leady z tego konta (żeby ponowny upload nadpisywał, nie dublował)
+    leadsData = leadsData.filter(l => l.account !== accountName);
+
+    rows.forEach(row => {
+        const source = String(row['source'] || '').trim().toLowerCase();
+        if (sourceFilterActive && !['traffic_manager', 'adrice'].includes(source)) { skippedSource++; return; }
+        const sku = row['product_SKU'] || '';
+        const m = sku.match(/UCP(\d+)/i);
+        if (!m) { skippedNoOffer++; return; }
+        const offerId = m[1];
+        const countryRaw = String(row['country'] || '').trim().toUpperCase();
+        if (!SCOPE_COUNTRIES.includes(countryRaw.toLowerCase())) { skippedCountry++; return; }
+        const creationDate = parseAdministrationDate(row['creation_date']);
+        if (!creationDate) { skippedNoDate++; return; }
+        const confirmDate = parseAdministrationDate(row['confirm_date']);
+
+        leadsData.push({
+            offerId, country: countryRaw.toLowerCase(), account: accountName,
+            creationDate, confirmDate, status: String(row['status'] || '').trim(),
+            shipStatus: String(row['ship_status'] || '').trim(), source
+        });
+        matched++;
+    });
+
+    leadsImportStats[accountName] = { rows: rows.length, matched, skippedNoOffer, skippedSource, skippedCountry, skippedNoDate };
+    document.getElementById(dzId).classList.add('filled');
+    statEl.innerText = `✅ ${matched} / ${rows.length} wierszy dopasowanych (kraj poza zakresem: ${skippedCountry}, brak SKU→ID: ${skippedNoOffer}, odfiltr. źródło: ${skippedSource})`;
+
+    renderLeadsSummary();
+    renderSanityCheck();
+    showNotif(`📅 ${accountName}: wczytano ${matched} leadów z realną datą.`);
+}
+
+function clearLeadsData() {
+    if (!confirm('Wyczyścić wszystkie wczytane leady (Sekcja B)?')) return;
+    leadsData = [];
+    leadsImportStats = {};
+    ['dz-uncapped', 'dz-find', 'dz-alcance'].forEach(id => document.getElementById(id).classList.remove('filled'));
+    ['stat-uncapped', 'stat-find', 'stat-alcance'].forEach(id => document.getElementById(id).innerText = '');
+    renderLeadsSummary();
+    renderSanityCheck();
+}
+
+function renderLeadsSummary() {
+    const container = document.getElementById('leadsSummary');
+    if (leadsData.length === 0) {
+        container.innerHTML = '<div class="empty-state">Brak wczytanych leadów. Wgraj eksporty Amsped Administration powyżej.</div>';
+        return;
+    }
+    const byCountry = {};
+    leadsData.forEach(l => { byCountry[l.country] = (byCountry[l.country] || 0) + 1; });
+    const dates = leadsData.map(l => l.creationDate).sort((a, b) => a - b);
+    let html = `<div class="stat-row">
+        <div class="stat-box"><div class="stat-label">Wczytanych rekordów (wszystkie statusy)</div><div class="stat-value">${leadsData.length}</div></div>
+        <div class="stat-box"><div class="stat-label">Zakres dat</div><div class="stat-value" style="font-size:0.95rem;">${fmtDate(dates[0])} → ${fmtDate(dates[dates.length - 1])}</div></div>
+    </div>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1rem;">`;
+    Object.keys(byCountry).sort().forEach(c => {
+        html += `<span class="tag tag-info">${c.toUpperCase()}: ${byCountry[c]}</span>`;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+
+function renderSanityCheck() {
+    const container = document.getElementById('sanityCheckPanel');
+    const monthKey = document.getElementById('activeMonth').value;
+    if (leadsData.length === 0) {
+        container.innerHTML = '<div class="empty-state">Wgraj leady w Sekcji B, żeby zobaczyć porównanie z bazą Hub-a.</div>';
+        return;
+    }
+    const { start, end } = monthBounds(monthKey);
+
+    const counted = {}; // offerId|country -> count
+    leadsData.forEach(l => {
+        if (!isConfirmedLead(l)) return;
+        const { date: pricingDate } = getPricingDate(l);
+        if (pricingDate < start || pricingDate > end) return;
+        const key = l.offerId + '|' + l.country;
+        counted[key] = (counted[key] || 0) + 1;
+    });
+
+    const keys = Object.keys(counted);
+    if (keys.length === 0) {
+        container.innerHTML = `<div class="empty-state">Brak potwierdzonych leadów (wg aktualnej listy statusów) w wybranym miesiącu (${monthKey}) w wczytanych plikach.</div>`;
+        return;
+    }
+
+    // Zafakturowano liczymy z LOGÓW (ta sama, już zweryfikowana ścieżka co Sekcja C), a nie ze
+    // słownika kumulacyjnego invoicingDB[miesiąc][kraj][ID] — ten drugi bywa niewiarygodny przez
+    // historię migracji v3 (czasem zdublowany, czasem zaniżony, zależnie od tego czy dana oferta
+    // akurat "złapała się" na warunek kopiowania w przycisku migracji w index.html).
+    const actualFromLogs = computeActualForMonth(monthKey);
+
+    let html = `<table class="data-table"><thead><tr><th>Offer ID</th><th>Kraj</th><th>Potwierdzone leady (Administration)</th><th>Zafakturowano wg logów Hub</th><th>Różnica</th></tr></thead><tbody>`;
+    keys.sort((a, b) => counted[b] - counted[a]).slice(0, 200).forEach(key => {
+        const [offerId, country] = key.split('|');
+        const adminCount = counted[key];
+        const hubCount = (actualFromLogs[key] && actualFromLogs[key].leadCount) || 0;
+        const diff = adminCount - hubCount;
+        html += `<tr>
+            <td>#${offerId}</td><td>${country.toUpperCase()}</td>
+            <td>${adminCount}</td><td>${hubCount}</td>
+            <td style="font-weight:700; color:${Math.abs(diff) > 0 ? '#fbbf24' : '#34d399'}">${diff > 0 ? '+' : ''}${diff}</td>
+        </tr>`;
+    });
+    html += `</tbody></table>
+    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.6rem;">Uwaga: "Zafakturowano wg logów Hub" to suma z logów potwierdzeń za cały miesiąc (nie tylko potwierdzone do dziś) — różnice na koniec trwającego miesiąca są normalne. Użyj tego panelu głównie dla <b>zamkniętych</b> miesięcy, żeby skalibrować listę statusów powyżej.</div>`;
+    container.innerHTML = html;
+}
+
+function getHistoricalMonth(monthKey) {
+    return historicalDB[monthKey] || null;
+}
+
+// ============================================================================
+// SEKCJA C — REKONCYLIACJA
+// ============================================================================
+function getMonthLogs(monthKey) {
+    if (invoicingDB[monthKey] && invoicingDB[monthKey].logs && invoicingDB[monthKey].logs.length) return invoicingDB[monthKey].logs;
+    const hist = getHistoricalMonth(monthKey);
+    if (hist && hist.logs) return hist.logs;
+    return [];
+}
+
+function getInferredRange(log, monthKey) {
+    const confirmDate = parseLogTimestamp(log.timestamp);
+    if (!confirmDate) return { start: null, end: null, confidence: 'unknown' };
+    const dow = confirmDate.getDay(); // 0=Sun..6=Sat
+
+    if (log.mode === 'KONTROLA (ZAKRES)') {
+        if (dow === 1) { // poniedziałek -> Pt-Nd poprzedni
+            const sun = addDays(startOfDay(confirmDate), -1);
+            const fri = addDays(sun, -2);
+            return { start: startOfDay(fri), end: endOfDay(sun), confidence: 'exact-cadence' };
+        } else if (dow === 5) { // piątek -> Pn-Czw tego tygodnia
+            const thu = addDays(startOfDay(confirmDate), -1);
+            const mon = addDays(thu, -3);
+            return { start: startOfDay(mon), end: endOfDay(thu), confidence: 'exact-cadence' };
+        }
+        return { start: null, end: null, confidence: 'off-cadence' };
+    }
+    // Tryby AUTOMAT / AUTOMAT (KOREKTA SALDA) — top-up kumulacyjny dla danego miesiąca
+    const { start } = monthBounds(monthKey);
+    return { start, end: endOfDay(confirmDate), confidence: 'cumulative' };
+}
+
+function getAllKnownMonthKeys() {
+    const keys = new Set([...Object.keys(invoicingDB), ...Object.keys(historicalDB)]);
+    return [...keys].filter(k => /^\d{4}-\d{2}$/.test(k));
+}
+
+// Przed migracją v3 (czerwiec 2026) logi były oznaczane nazwą KONTA (Find/Alcance obejmowały
+// po kilka krajów naraz), a po migracji — kodem konkretnego kraju (DE/PT/...). Stare logi w
+// bazie wciąż mają stare oznaczenia, więc ta sama oferta rozjeżdżała się na dwie osobne pozycje
+// (np. "#4106 Alcance" i "#4106 PT"). Ustalamy prawdziwy kraj oferty na podstawie realnych danych
+// z Sekcji B (Administration), a etykietę z logu traktujemy jako źródło prawdy TYLKO gdy jest już
+// prawidłowym kodem kraju.
+function buildOfferCountryMap() {
+    const map = {};
+    leadsData.forEach(l => { if (!map[l.offerId]) map[l.offerId] = l.country; });
+    return map;
+}
+function resolveLogCountry(rawType, offerId, offerCountryMap) {
+    const lower = (rawType || '').toLowerCase();
+    if (SCOPE_COUNTRIES.includes(lower)) return lower;
+    return offerCountryMap[offerId] || lower;
+}
+
+function computeActualForMonth(targetMonth) {
+    const actual = {};
+    const { start: monthStart, end: monthEnd } = monthBounds(targetMonth);
+    const monthsToScan = [targetMonth, shiftMonthKey(targetMonth, -1), shiftMonthKey(targetMonth, 1)];
+    const offerCountryMap = buildOfferCountryMap();
+
+    monthsToScan.forEach(mk => {
+        const logs = getMonthLogs(mk);
+        logs.forEach(log => {
+            let range = getInferredRange(log, mk);
+            let includeWhole = false;
+
+            if (mk === targetMonth) {
+                // Log fizycznie leży we WŁASNEJ "szufladzie" miesiąca (invoicingDB[targetMonth].logs) —
+                // to rozstrzyga przynależność, niezależnie od tego, czy jego wywnioskowany zakres dat
+                // (na podstawie dnia tygodnia confirmDate) faktycznie pokrywa się z kalendarzowym
+                // miesiącem. Bez tego logi potwierdzone na początku kolejnego miesiąca za końcówkę
+                // poprzedniego (np. KONTROLA w piątek pokrywająca Pn-Czw, gdy ten piątek przypadł już
+                // w nowym miesiącu) były błędnie pomijane, mimo że użytkownik świadomie zapisał je
+                // pod tym miesiącem. range/confidence liczymy tylko do celów informacyjnych (tag).
+                includeWhole = true;
+            } else {
+                // Dla sąsiednich miesięcy liczymy TYLKO logi KONTROLA z jednoznacznym zakresem (przejście przez granicę miesiąca)
+                if (log.mode !== 'KONTROLA (ZAKRES)' || !range.start) return;
+            }
+
+            const overlaps = includeWhole || (range.start && range.end && range.start <= monthEnd && range.end >= monthStart);
+            if (!overlaps) return;
+
+            // Log fizycznie leży w innym miesiącu (mk), ale jego wywnioskowany zakres zachodzi na targetMonth —
+            // ponieważ nie znamy podziału delty na dni, CAŁA wartość logu liczy się w obu miesiącach.
+            // Oznaczamy to osobną flagą, żeby ostrzec przed zsumowaniem dwóch sąsiednich raportów miesięcznych.
+            const confidenceTag = (mk !== targetMonth) ? 'cross-month-boundary' : range.confidence;
+
+            log.items.forEach(it => {
+                const country = resolveLogCountry(log.type, it.id, offerCountryMap);
+                const key = it.id + '|' + country;
+                if (!actual[key]) actual[key] = { offerId: it.id, country, value: 0, leadCount: 0, confidence: new Set(), logsInvolved: [] };
+                actual[key].value += it.delta * it.price;
+                actual[key].leadCount += it.delta;
+                actual[key].confidence.add(confidenceTag);
+                if (!SCOPE_COUNTRIES.includes((log.type || '').toLowerCase())) actual[key].confidence.add('legacy-account-label');
+                actual[key].logsInvolved.push({ invoiceNumber: log.invoiceNumber, timestamp: log.timestamp, delta: it.delta, price: it.price, mode: log.mode, monthKey: mk, rawType: log.type });
+            });
+        });
+    });
+
+    // Korekty (pendingAdjustments, kwoty ryczałtowe nieprzypisane do oferty) są jawnie tagowane
+    // polem adj.month — konsumowane bywają w DOWOLNYM późniejszym miesiącu, w dowolnym trybie
+    // (typowo AUTOMAT), więc skanujemy WSZYSTKIE znane miesiące i dopasowujemy po adj.month,
+    // niezależnie od trybu/zakresu logu, w którym zostały faktycznie rozliczone.
+    getAllKnownMonthKeys().forEach(mk => {
+        getMonthLogs(mk).forEach(log => {
+            (log.adjustments || []).forEach(adj => {
+                if (adj.month !== targetMonth) return;
+                const acct = (adj.account || log.type.toLowerCase());
+                const key = 'ADJUSTMENT|' + acct;
+                if (!actual[key]) actual[key] = { offerId: 'ADJUSTMENT', country: acct, value: 0, leadCount: 0, confidence: new Set(), logsInvolved: [] };
+                actual[key].value += (adj.amount || 0);
+                actual[key].confidence.add('adjustment');
+                actual[key].logsInvolved.push({ invoiceNumber: log.invoiceNumber, timestamp: log.timestamp, delta: 0, price: adj.amount, mode: 'KOREKTA SALDA (konsumpcja w ' + mk + ')', monthKey: mk });
+            });
+        });
+    });
+
+    return actual;
+}
+
+function computeShouldBeForMonth(targetMonth) {
+    const { start: monthStart, end: monthEnd } = monthBounds(targetMonth);
+    const shouldBe = {};
+
+    leadsData.forEach(lead => {
+        if (!isConfirmedLead(lead)) return;
+        const { date: pricingDate, usedFallback } = getPricingDate(lead);
+        if (pricingDate < monthStart || pricingDate > monthEnd) return;
+        const key = lead.offerId + '|' + lead.country;
+        const priceInfo = priceAt(lead.offerId, pricingDate);
+        if (!shouldBe[key]) shouldBe[key] = { offerId: lead.offerId, country: lead.country, value: 0, leadCount: 0, confidence: new Set(), leadsDetail: [] };
+        const val = priceInfo ? priceInfo.value : 0;
+        shouldBe[key].value += val;
+        shouldBe[key].leadCount += 1;
+        let conf = priceInfo ? priceInfo.confidence : 'no-data';
+        if (usedFallback) conf += '+confirm-date-missing';
+        shouldBe[key].confidence.add(conf);
+        shouldBe[key].leadsDetail.push({
+            pricingDate, creationDate: lead.creationDate, confirmDate: lead.confirmDate, usedFallback,
+            price: val, confidence: priceInfo ? priceInfo.confidence : 'no-data', account: lead.account
+        });
+    });
+
+    return shouldBe;
+}
+
+function computeReconciliation(targetMonth) {
+    const shouldBe = computeShouldBeForMonth(targetMonth);
+    const actual = computeActualForMonth(targetMonth);
+    const keys = new Set([...Object.keys(shouldBe), ...Object.keys(actual)]);
+    const rows = [];
+    const adjustmentRows = [];
+
+    keys.forEach(key => {
+        if (key.startsWith('ADJUSTMENT|')) {
+            const ac = actual[key];
+            adjustmentRows.push({ country: ac.country, value: ac.value, logsInvolved: ac.logsInvolved });
+            return;
+        }
+        const sb = shouldBe[key] || { value: 0, leadCount: 0, confidence: new Set(['no-lead-data']), leadsDetail: [] };
+        const ac = actual[key] || { value: 0, leadCount: 0, confidence: new Set(['not-invoiced']), logsInvolved: [] };
+        const [offerId, country] = key.split('|');
+        const delta = sb.value - ac.value;
+        let flag = 'ZGODNE';
+        if (delta > 0.5) flag = 'NIEDOFAKTUROWANO';
+        else if (delta < -0.5) flag = 'NADFAKTUROWANO';
+
+        rows.push({
+            offerId, country, shouldBeValue: sb.value, actualValue: ac.value, delta,
+            shouldBeLeads: sb.leadCount, actualLeads: ac.leadCount, flag,
+            shouldBeConfidence: [...sb.confidence], actualConfidence: [...ac.confidence],
+            leadsDetail: sb.leadsDetail, logsInvolved: ac.logsInvolved
+        });
+    });
+
+    rows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    return { rows, adjustmentRows };
+}
+
+function runReconciliation() {
+    const monthKey = document.getElementById('activeMonth').value;
+    if (leadsData.length === 0) {
+        alert('Najpierw wgraj eksporty Amsped Administration w Sekcji B (potrzebne są realne daty leadów).');
+        return;
+    }
+    if (getAllInvoicedOfferIds().length === 0) {
+        if (!confirm('W bazie Hub-a nie znaleziono żadnych logów faktur — ceny biorą się z realnie zafakturowanych stawek, więc bez logów raport policzy się z ceną 0 dla wszystkich leadów. Kontynuować mimo to?')) return;
+    }
+    const { rows, adjustmentRows } = computeReconciliation(monthKey);
+    lastReportRows = rows;
+    lastReportAdjustmentRows = adjustmentRows;
+    lastReportMonth = monthKey;
+    document.getElementById('offerFilterInput').value = '';
+    renderReport(rows, adjustmentRows, monthKey);
+}
+
+function applyOfferFilter() {
+    if (!lastReportMonth) return;
+    const q = document.getElementById('offerFilterInput').value.trim().toLowerCase();
+    const filtered = q ? lastReportRows.filter(r => r.offerId.toLowerCase().includes(q)) : lastReportRows;
+    renderReport(filtered, lastReportAdjustmentRows, lastReportMonth, filtered !== lastReportRows);
+}
+
+let currentRenderedRows = [];
+
+function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
+    const container = document.getElementById('reportContainer');
+    currentRenderedRows = rows;
+    document.getElementById('exportReportBtn').style.display = lastReportRows.length ? 'inline-block' : 'none';
+
+    if (rows.length === 0) {
+        container.innerHTML = `<div class="empty-state">${isFiltered ? 'Brak pozycji pasujących do filtra Offer ID.' : 'Brak danych do porównania dla tego miesiąca (ani leadów, ani logów faktur).'}</div>`;
+        return;
+    }
+
+    const totalShouldBe = rows.reduce((s, r) => s + r.shouldBeValue, 0);
+    const totalActual = rows.reduce((s, r) => s + r.actualValue, 0) + adjustmentRows.reduce((s, a) => s + a.value, 0);
+    const totalDelta = totalShouldBe - (totalActual);
+    const under = rows.filter(r => r.flag === 'NIEDOFAKTUROWANO');
+    const over = rows.filter(r => r.flag === 'NADFAKTUROWANO');
+
+    const noDataCount = rows.filter(r => r.shouldBeConfidence.some(c => c.startsWith('no-data'))).length;
+    const assumedCount = rows.filter(r => r.shouldBeConfidence.some(c => c.startsWith('assumed'))).length;
+    const approxBoundaryCount = rows.filter(r => r.shouldBeConfidence.some(c => c.startsWith('approx'))).length;
+    const offCadenceCount = rows.filter(r => r.actualConfidence.some(c => c === 'off-cadence' || c === 'off-cadence-approx')).length;
+    const notInvoicedCount = rows.filter(r => r.actualConfidence.includes('not-invoiced')).length;
+    const boundaryCount = rows.filter(r => r.actualConfidence.includes('cross-month-boundary')).length;
+
+    let banner = '';
+    if (noDataCount || assumedCount || approxBoundaryCount || offCadenceCount || notInvoicedCount || boundaryCount) {
+        banner = `<div class="confidence-banner">⚠️ <b>Uwagi co do pewności danych dla ${monthKey}:</b><br>`;
+        if (noDataCount) banner += `• ${noDataCount} pozycji nie ma ŻADNEJ zafakturowanej ceny w logach Hub-a dla tej oferty (użyto ceny 0) — sprawdź, czy oferta faktycznie jeszcze nie była fakturowana, albo czy offer ID się zgadza.<br>`;
+        if (assumedCount) banner += `• ${assumedCount} pozycji ma leady sprzed pierwszej znanej faktury dla tej oferty — użyto najwcześniej znanej realnej ceny (assumed).<br>`;
+        if (approxBoundaryCount) banner += `• ${approxBoundaryCount} pozycji ma cenę policzoną z realnej faktury, ale z PRZYBLIŻONĄ datą granicy zmiany ceny (brak dokładnej daty w Sekcji A dla tego przejścia) — wartość powinna być poprawna, ale podział leadów między starą/nową cenę jest orientacyjny. Szczegóły w Sekcji A.<br>`;
+        if (offCadenceCount) banner += `• ${offCadenceCount} pozycji dotyczy zatwierdzeń poza standardowym cyklem pon./pt. — okres przybliżony.<br>`;
+        if (notInvoicedCount) banner += `• ${notInvoicedCount} pozycji ma leady, których nie odnaleziono w ŻADNYM logu faktury (możliwe: jeszcze niezafakturowane, albo log w innym miesiącu).<br>`;
+        if (boundaryCount) banner += `• ${boundaryCount} pozycji zawiera fakturę na granicy miesięcy, której zakres dat zachodzi na sąsiedni miesiąc — jej PEŁNA wartość liczy się w raportach OBU miesięcy (bo nie da się rozbić delty na dni). <b>Nie sumuj tych dwóch raportów miesięcznych razem</b>, bo policzysz tę fakturę podwójnie.<br>`;
+        banner += `</div>`;
+    }
+
+    let html = banner + `
+    <div class="stat-row">
+        <div class="stat-box"><div class="stat-label">Powinno Być (razem)</div><div class="stat-value">${totalShouldBe.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Faktycznie Zafakturowano (razem, wraz z korektami)</div><div class="stat-value">${totalActual.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Różnica netto</div><div class="stat-value" style="color:${Math.abs(totalDelta) < 0.5 ? '#34d399' : (totalDelta > 0 ? '#fbbf24' : '#f87171')}">${totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Niedofakturowano / Nadfakturowano</div><div class="stat-value" style="font-size:1.1rem;"><span style="color:#fbbf24">${under.length}</span> / <span style="color:#f87171">${over.length}</span> pozycji</div></div>
+    </div>
+    <table class="data-table"><thead><tr>
+        <th>Offer ID</th><th>Kraj</th><th style="text-align:right">Powinno Być</th><th style="text-align:right">Zafakturowano</th>
+        <th style="text-align:right">Delta</th><th>Leady (P/A)</th><th>Flaga</th><th>Pewność</th>
+    </tr></thead><tbody>`;
+
+    rows.forEach((r, idx) => {
+        const flagCls = r.flag === 'ZGODNE' ? 'tag-ok' : (r.flag === 'NIEDOFAKTUROWANO' ? 'tag-warn' : 'tag-danger');
+        html += `<tr onclick="openDrilldown(${idx})">
+            <td>#${r.offerId}</td><td>${r.country.toUpperCase()}</td>
+            <td style="text-align:right">${r.shouldBeValue.toFixed(2)} €</td>
+            <td style="text-align:right">${r.actualValue.toFixed(2)} €</td>
+            <td style="text-align:right; font-weight:700; color:${Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171')}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €</td>
+            <td>${r.shouldBeLeads} / ${r.actualLeads}</td>
+            <td><span class="tag ${flagCls}">${r.flag}</span></td>
+            <td>${[...new Set([...r.shouldBeConfidence, ...r.actualConfidence])].map(confidenceTag).join(' ')}</td>
+        </tr>`;
+    });
+    html += `</tbody></table>`;
+
+    if (adjustmentRows.length > 0) {
+        html += `<h3>Korekty salda ujęte w tym miesiącu</h3><table class="data-table"><thead><tr><th>Konto</th><th style="text-align:right">Kwota</th></tr></thead><tbody>`;
+        adjustmentRows.forEach(a => {
+            html += `<tr><td>${a.country.toUpperCase()}</td><td style="text-align:right">${a.value.toFixed(2)} €</td></tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+
+    html += renderCountrySummary();
+
+    container.innerHTML = html;
+}
+
+// Podsumowanie do dopłaty/rabatu per kraj, zawsze liczone z PEŁNEGO (nieprzefiltrowanego) raportu —
+// żeby filtr po Offer ID w tabeli powyżej go nie zniekształcał. Świadomie NIE miesza się tu starych,
+// ręcznych korekt (pendingAdjustments) — to osobny, ręczny mechanizm sprzed tego narzędzia i jego
+// wliczanie tylko wprowadzało zamieszanie. Liczba tutaj to czysta suma rozbieżności (Powinno Być −
+// Zafakturowano) ze wszystkich ofert danego kraju — dokładnie tyle trzeba dopisać/zrabatować.
+function renderCountrySummary() {
+    if (lastReportRows.length === 0) return '';
+
+    const byCountry = {};
+    lastReportRows.forEach(r => {
+        byCountry[r.country] = (byCountry[r.country] || 0) + r.delta;
+    });
+
+    const countries = Object.keys(byCountry).filter(c => Math.abs(byCountry[c]) > 0.01);
+    if (countries.length === 0) return '';
+
+    countries.sort((a, b) => Math.abs(byCountry[b]) - Math.abs(byCountry[a]));
+
+    let html = `<h3>📮 Podsumowanie do doliczenia / zrabatowania — per kraj (${lastReportMonth})</h3>
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Zawsze liczone z pełnego raportu (niezależnie od filtra Offer ID powyżej). Suma rozbieżności ze wszystkich ofert danego kraju za cały miesiąc, z uwzględnieniem zmian cen w jego trakcie — dokładnie tyle dopisujesz (dodatnia) lub rabatujesz (ujemna) na kolejnej fakturze.</div>
+    <table class="data-table"><thead><tr><th>Kraj</th><th style="text-align:right">Do dopłaty / rabatu</th></tr></thead><tbody>`;
+
+    let grandTotal = 0;
+    countries.forEach(c => {
+        const val = byCountry[c];
+        grandTotal += val;
+        const color = val > 0 ? '#fbbf24' : '#f87171';
+        html += `<tr>
+            <td>${c.toUpperCase()}</td>
+            <td style="text-align:right; font-weight:800; color:${color}">${val > 0 ? '+' : ''}${val.toFixed(2)} €</td>
+        </tr>`;
+    });
+    html += `<tr style="background:rgba(16,185,129,0.08); font-weight:800;">
+        <td style="text-align:right; color:var(--accent)">SUMA WSZYSTKICH KRAJÓW:</td>
+        <td style="text-align:right; color:#fbbf24;">${grandTotal > 0 ? '+' : ''}${grandTotal.toFixed(2)} €</td>
+    </tr>`;
+    html += `</tbody></table>`;
+    return html;
+}
+
+function openDrilldown(idx) {
+    const r = currentRenderedRows[idx];
+    if (!r) return;
+    let html = `<h2 style="color:var(--accent); margin-top:0;">Offer #${r.offerId} — ${r.country.toUpperCase()}</h2>
+    <div class="stat-row">
+        <div class="stat-box"><div class="stat-label">Powinno Być</div><div class="stat-value">${r.shouldBeValue.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Zafakturowano</div><div class="stat-value">${r.actualValue.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Delta</div><div class="stat-value" style="color:${Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171')}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €</div></div>
+    </div>`;
+
+    if (r.flag !== 'ZGODNE') {
+        const action = r.delta > 0
+            ? `Sugerowana dopłata: <b>${r.delta.toFixed(2)} €</b> (dodatkowa linia na fakturze lub osobna nota).`
+            : `Sugerowany rabat/korekta: <b>${Math.abs(r.delta).toFixed(2)} €</b> (nadfakturowano ${Math.abs(r.delta).toFixed(2)} €).`;
+        html += `<div class="confidence-banner" style="border-color: var(--accent); color: var(--accent-hover);">💡 ${action} Narzędzie tylko sugeruje — nie tworzy automatycznie wpisu w Hub-ie.</div>`;
+    }
+
+    html += `<h3>Leady uwzględnione w "Powinno Być" (${r.leadsDetail.length})</h3>`;
+    if (r.leadsDetail.length === 0) {
+        html += `<div class="empty-state">Brak leadów z Sekcji B dla tej pozycji w wybranym miesiącu.</div>`;
+    } else {
+        html += `<table class="data-table"><thead><tr><th>creation_date</th><th>confirm_date</th><th>Użyta data (${getPricingDateMode()})</th><th>Konto</th><th style="text-align:right">Zastosowana cena</th><th>Pewność</th></tr></thead><tbody>`;
+        r.leadsDetail.slice().sort((a, b) => a.pricingDate - b.pricingDate).slice(0, 500).forEach(l => {
+            html += `<tr><td>${fmtDate(l.creationDate)}</td><td>${l.confirmDate ? fmtDate(l.confirmDate) : '<span style="color:var(--text-muted)">brak</span>'}</td><td style="font-weight:700">${fmtDate(l.pricingDate)}${l.usedFallback ? ' <span class="tag tag-warn">fallback</span>' : ''}</td><td>${l.account}</td><td style="text-align:right">${l.price.toFixed(2)} €</td><td>${confidenceTag(l.confidence)}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        if (r.leadsDetail.length > 500) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.4rem;">Pokazano 500 z ${r.leadsDetail.length} leadów.</div>`;
+    }
+
+    html += `<h3>Logi faktur uwzględnione w "Zafakturowano" (${r.logsInvolved.length})</h3>`;
+    if (r.logsInvolved.length === 0) {
+        html += `<div class="empty-state">Nie znaleziono żadnego logu faktury dla tej pozycji w tym miesiącu (ani w sąsiednich, sprawdzonych pod kątem granicy miesiąca).</div>`;
+    } else {
+        html += `<table class="data-table"><thead><tr><th>Faktura</th><th>Timestamp</th><th>Tryb</th><th style="text-align:right">Delta</th><th style="text-align:right">Cena</th></tr></thead><tbody>`;
+        r.logsInvolved.forEach(l => {
+            html += `<tr><td>${l.invoiceNumber || '---'}</td><td>${l.timestamp}</td><td>${l.mode}</td><td style="text-align:right">${l.delta}</td><td style="text-align:right">${(typeof l.price === 'number' ? l.price.toFixed(2) : l.price)} €</td></tr>`;
+        });
+        html += `</tbody></table>`;
+    }
+
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('detailsModal').style.display = 'flex';
+}
+
+function exportReportCsv() {
+    if (!lastReportRows.length) return;
+    let csv = 'Offer_ID;Country;ShouldBe;Actual;Delta;Leads_ShouldBe;Leads_Actual;Flag;Confidence\n';
+    lastReportRows.forEach(r => {
+        const conf = [...new Set([...r.shouldBeConfidence, ...r.actualConfidence])].join('|');
+        csv += `${r.offerId};${r.country.toUpperCase()};${r.shouldBeValue.toFixed(2)};${r.actualValue.toFixed(2)};${r.delta.toFixed(2)};${r.shouldBeLeads};${r.actualLeads};${r.flag};${conf}\n`;
+    });
+    downloadFile(`rekoncyliacja_${lastReportMonth}.csv`, csv, 'text/csv;charset=utf-8');
+    showNotif('⬇️ Raport wyeksportowany do CSV.');
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+window.onload = () => {
+    initMonthSelector();
+    renderPriceHistoryCoverage();
+    renderLeadsSummary();
+    renderSanityCheck();
+    renderPriceChangesThisMonth();
+};
+</script>
+</body>
+</html>
