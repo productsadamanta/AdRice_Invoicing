@@ -56,23 +56,6 @@
             cursor: pointer;
         }
 
-        .intro-box {
-            background: linear-gradient(135deg, rgba(96,165,250,0.08) 0%, rgba(16,185,129,0.05) 100%);
-            border: 1px solid rgba(96,165,250,0.35);
-            border-radius: 12px;
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 2rem;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
-        .intro-box b { color: var(--text-main); }
-        .phase-tag {
-            display:inline-block; font-size:0.65rem; font-weight:700; padding:1px 6px; border-radius:4px;
-            margin-right:0.4rem; text-transform:uppercase; letter-spacing:0.03em;
-        }
-        .phase-live { background:rgba(16,185,129,0.2); color:#34d399; }
-        .phase-pending { background:rgba(148,163,184,0.15); color:#94a3b8; }
 
         .panel {
             background: var(--panel-bg);
@@ -120,13 +103,6 @@
         .btn.big { padding: 1rem 2rem; font-size: 1rem; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        .config-row { display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start; margin-bottom:1rem; font-size:0.8rem; }
-        .config-row label { display:block; font-weight:600; margin-bottom:0.3rem; color: var(--text-muted); }
-        textarea.status-input {
-            width: 100%; min-width: 280px; min-height: 50px; background: rgba(0,0,0,0.3);
-            border:1px solid var(--border); border-radius:6px; color: var(--accent-hover); padding:0.5rem;
-            font-family: monospace; font-size: 0.8rem;
-        }
 
         table.data-table {
             width: 100%;
@@ -212,9 +188,6 @@
             font-size: 0.85rem;
         }
 
-        details.section-help { margin-bottom: 1rem; }
-        details.section-help summary { cursor:pointer; font-size:0.78rem; color: var(--info); }
-        details.section-help div { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; line-height: 1.6; background: rgba(0,0,0,0.15); padding: 0.75rem 1rem; border-radius: 8px; }
     </style>
 </head>
 
@@ -223,44 +196,17 @@
     <div class="header">
         <h1>🔍 Rekoncyliacja Wartości Leadów</h1>
         <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
-            <button class="btn ghost" onclick="importArchiveBackup()" title="Wczytaj dodatkowy plik z ArchiveBackups jako uzupełniające źródło logów faktur dla miesięcy, których nie ma w aktualnej bazie przeglądarki">📂 Wczytaj archiwalny backup</button>
-            <button class="btn ghost" onclick="exportPriceHistory()" title="Zapisz plik price_history.json (kopia zapasowa historii cen)">💾 Eksport historii cen</button>
-            <button class="btn ghost" onclick="importPriceHistory()" title="Wczytaj wcześniej zapisany plik price_history.json">📂 Import historii cen</button>
             <div class="month-selector">
                 <select id="activeMonth" onchange="onMonthChange()"></select>
             </div>
         </div>
     </div>
 
-    <div class="intro-box">
-        Narzędzie liczy, dla wybranego miesiąca, <b>ile powinno było zostać zafakturowane</b> na bazie realnej daty powstania każdego leada i stawki, którą FAKTYCZNIE zafakturowano za taki lead w danym okresie (nie rekonstrukcji z komponentów oferty) — i porównuje to z tym, <b>co faktycznie zafakturowano</b> (na podstawie logów potwierdzeń z Hub-a). Narzędzie jest <b>tylko do odczytu</b> względem <code>index.html</code> — niczego nie nadpisuje w Hub-ie.
-        <br><br>
-        <span class="phase-tag phase-live">Faza 1</span>Dane per-lead z datą (Sekcja B)
-        <span class="phase-tag phase-live">Faza 2</span>Wykrywanie DAT granic zmian cen ze snapshotów (Sekcja A)
-        <span class="phase-tag phase-live">Faza 3/5</span>Raport rozbieżności (Sekcja C) — działa dla dowolnego miesiąca, bieżącego i przeszłego
-        <span class="phase-tag phase-live">Faza 4</span>Dokładne DATY granic zmian cen z historii AdRice — <code>adrice_offer_history_scraper.js</code> (wklej do konsoli na stronie <code>/en/offers</code>, wynik wgraj w Sekcji A). Wartości cen zawsze biorą się z realnych faktur, nie z tego skryptu.
-    </div>
-
     <!-- SEKCJA A -->
     <div class="panel">
         <h2>💶 Sekcja A — Daty granic zmian cen</h2>
-        <details class="section-help">
-            <summary>Jak to działa?</summary>
-            <div>
-                <b>WARTOŚCI cen w raporcie (Sekcja C) ZAWSZE pochodzą z realnie zafakturowanych stawek w logach Hub-a</b> — nigdy z tej sekcji. Ta sekcja odpowiada tylko za jedno: kiedy DOKŁADNIE nastąpiła granica między dwoma sąsiednimi, realnie zaobserwowanymi w fakturach poziomami cen (potrzebne, żeby poprawnie podzielić leady z danego miesiąca na "stara cena" / "nowa cena"). Rekonstrukcja WARTOŚCI z sumowania komponentów oferty (Payout + Advertiser Fee + Native Adv Fee) została porzucona jako z natury krucha — komponenty służą teraz wyłącznie jako źródło DATY.<br><br>
-                Dwa niezależne źródła dat zasilają tę samą oś czasu (<code>price_history.json</code>, localStorage <code>adrice_price_history_v1</code>):<br>
-                1. <b>Snapshot zwykłego scrapera ofert</b> (plik <code>adrice_offers_prices.csv</code>, ten sam, którego już używasz co tydzień w Hub-ie) — jeśli suma się zmieniła względem poprzedniego uploadu, zapamiętywana jest data TEGO uploadu jako przybliżona (<span class="tag tag-warn">inferred</span>) data granicy — używana tylko gdy brak dokładniejszego źródła.<br>
-                2. <b>Dokładna historia zmian z AdRice</b> — wklej <code>adrice_offer_history_scraper.js</code> do konsoli na stronie <code>/en/offers</code> (tak jak zwykły scraper), pobierze pełną historię zmian komponentów ze wszystkich ofert naraz. Wynikowy CSV wgraj tutaj — daje wpisy <span class="tag tag-ok">exact</span> z prawdziwą datą i godziną zmiany (najlepsze źródło daty granicy).<br><br>
-                Jeśli dla jakiejś realnej zmiany ceny w fakturach nie znajdzie się żadna data w żadnym z tych dwóch źródeł, narzędzie spada do przybliżenia — środka okna między ostatnią fakturą ze starą ceną a pierwszą z nową — i wyraźnie to oznacza (patrz tabela "brakujące daty granic" poniżej, jeśli występuje).
-            </div>
-        </details>
 
         <div class="upload-grid">
-            <div class="dropzone" id="dz-snapshot">
-                <label>📄 Snapshot ofert (adrice_offers_prices.csv — Aktywne + Nieaktywne)</label>
-                <input type="file" id="fileSnapshot" accept=".csv" multiple onchange="onSnapshotFilesSelected(this.files)">
-                <div class="filestat" id="stat-snapshot"></div>
-            </div>
             <div class="dropzone" id="dz-history">
                 <label>📄 Dokładna historia cen (wynik adrice_offer_history_scraper.js)</label>
                 <input type="file" id="fileHistory" accept=".csv" multiple onchange="onHistoryFilesSelected(this.files)">
@@ -275,50 +221,6 @@
     <!-- SEKCJA B -->
     <div class="panel">
         <h2>📅 Sekcja B — Leady z realną datą powstania</h2>
-        <details class="section-help">
-            <summary>Jak to działa?</summary>
-            <div>
-                Wgraj surowe eksporty <b>Amsped Administration</b> (pełny eksport CSV, ten sam typ pliku co w procesie Delivery Profit) — po jednym na konto. Z kolumny <code>product_SKU</code> (np. <code>UCP2283-2278</code>) wyciągany jest offer ID (<code>UCP(\d+)</code>), z <code>creation_date</code> — realna data powstania leada, z <code>country</code> — kraj (bezpośrednio, bez zgadywania z nazwy). Lead liczy się jako "potwierdzony" (Positivi), jeśli NIE ma <code>ship_status</code> z listy wykluczeń (domyślnie: <code>Not Shipped</code>), chyba że jego status jest na liście "zwolnionych" (np. <code>OK - Pending</code> naturalnie jeszcze nie mogło zostać wysłane, a mimo to się liczy). Osobna lista wykluczonych statusów, niezależna od ship_status, jest domyślnie <b>pusta</b> — zweryfikowaliśmy na ofercie #2285, że blanketowe wykluczanie statusów typu Cancelled/Trash niezależnie od ship_status było błędem: część takich leadów miała ship_status inny niż Not Shipped i powinna się liczyć. Zostaw ją pustą, chyba że panel kontrolny poniżej wskaże inaczej dla konkretnej oferty.
-            </div>
-        </details>
-
-        <div class="config-row">
-            <div style="flex:1; min-width:220px;">
-                <label>Statusy WYKLUCZONE z potwierdzonych leadów, niezależnie od ship_status (oddziel przecinkiem, domyślnie puste)</label>
-                <textarea class="status-input" id="statusExcludeConfig"></textarea>
-            </div>
-            <div style="flex:1; min-width:220px;">
-                <label>Wykluczone wartości ship_status (oddziel przecinkiem)</label>
-                <textarea class="status-input" id="shipStatusExcludeConfig">Not Shipped</textarea>
-            </div>
-            <div style="flex:1; min-width:220px;">
-                <label>Statusy ZWOLNIONE z wykluczenia po ship_status (mimo Not Shipped nadal liczone)</label>
-                <textarea class="status-input" id="shipStatusExemptConfig">OK - Pending</textarea>
-            </div>
-            <div>
-                <label>Filtr źródła</label>
-                <label style="font-weight:400; display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
-                    <input type="checkbox" id="sourceFilterToggle" checked>
-                    tylko source = traffic_manager / adrice
-                </label>
-            </div>
-            <div>
-                <label>Data referencyjna do ustalania ceny i przypisania do miesiąca</label>
-                <select id="pricingDateMode" onchange="renderSanityCheck()" style="padding:0.5rem 0.7rem; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--accent-hover); font-weight:600;">
-                    <option value="creation" selected>creation_date (data powstania leada) — wyznacznik ceny leada</option>
-                    <option value="confirm">confirm_date (data potwierdzenia)</option>
-                </select>
-                <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.3rem; max-width:320px;">creation_date wyznacza cenę leada. Gdy jest puste (rzadkie), narzędzie automatycznie użyje <code>confirm_date</code> jako zapasu.</div>
-            </div>
-            <div>
-                <label>Precyzja porównania daty ze zmianą ceny</label>
-                <select id="dateGranularity" onchange="renderSanityCheck()" style="padding:0.5rem 0.7rem; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--accent-hover); font-weight:600;">
-                    <option value="exact" selected>Dokładny czas (godzina:minuta:sekunda) — moment zmiany włącznie liczy się już po nowej cenie</option>
-                    <option value="day">Dzień (cały dzień zmiany = nowa cena)</option>
-                </select>
-                <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.3rem; max-width:320px;">Jeśli zmiana nastąpiła np. równo o 15:00:00 — leady do 14:59:59 liczą się po starej cenie, leady od 15:00:00 włącznie już po nowej. Wymaga dokładnej godziny zmiany w Sekcji A (pole <code>Changed_At</code>); jeśli znasz tylko dzień zmiany, wpisz <code>00:00:00</code> i użyj trybu "Dzień".</div>
-            </div>
-        </div>
 
         <div class="upload-grid">
             <div class="dropzone" id="dz-uncapped">
@@ -343,30 +245,18 @@
         </div>
 
         <div id="leadsSummary"></div>
-
-        <h3>🩺 Panel kontrolny (sanity-check) dla wybranego miesiąca</h3>
-        <div id="sanityCheckPanel"></div>
     </div>
 
     <!-- SEKCJA C -->
     <div class="panel">
         <h2>📊 Sekcja C — Raport rozbieżności</h2>
-        <details class="section-help">
-            <summary>Jak to działa?</summary>
-            <div>
-                Dla wybranego miesiąca: <b>Powinno Być</b> = suma po wszystkich potwierdzonych leadach z Sekcji B, każdy wyceniony wg REALNIE zafakturowanej stawki (z logów Hub-a, nie z rekonstrukcji komponentów oferty) obowiązującej dokładnie w dniu jego powstania — granice między kolejnymi stawkami ustalane są datami z Sekcji A. <b>Faktycznie Zafakturowano</b> = odtworzone z logów potwierdzeń w bazie Hub-a (<code>invoicingDB[miesiąc].logs</code>), z okresem każdego zatwierdzenia wywnioskowanym z dnia tygodnia (poniedziałek → piątek-niedziela, piątek → poniedziałek-czwartek; tryb AUTOMAT → cały miesiąc jako top-up kumulacyjny). Raport zawsze liczony jest dla całego miesiąca (nie pojedynczego tygodnia), żeby uniknąć porównywania niekompatybilnych okien czasowych.
-            </div>
-        </details>
 
         <h3 style="margin-top:0;">⚡ Oferty ze zmianą ceny w wybranym miesiącu</h3>
-        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Szybki podgląd, które oferty warto sprawdzić ręcznie (cena zmieniła się w trakcie miesiąca — potencjalne nad/niedofakturowanie) — reszta miała stałą cenę przez cały miesiąc, więc nie ma czego szukać. Liczone z realnych faktur (logi Hub-a), niezależnie od tego czy Sekcja B jest wgrana i bez klikania "Oblicz Rozbieżności".</div>
         <div id="priceChangesThisMonth"></div>
 
         <div style="margin:1.5rem 0 1.25rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
             <button class="btn big" onclick="runReconciliation()">⚙️ Oblicz Rozbieżności dla wybranego miesiąca</button>
             <button class="btn ghost" id="exportReportBtn" style="display:none;" onclick="exportReportCsv()">⬇️ Eksportuj raport (CSV)</button>
-            <input type="text" id="offerFilterInput" placeholder="🔎 Filtruj po Offer ID (np. 693)" oninput="applyOfferFilter()"
-                style="padding:0.6rem 0.9rem; border-radius:8px; border:1px solid var(--border); background:rgba(0,0,0,0.25); color:var(--text-main); font-size:0.85rem; min-width:220px;">
         </div>
         <div id="reportContainer"></div>
     </div>
@@ -387,6 +277,12 @@
 // ============================================================================
 const LS_INVOICING = 'adrice_invoicing_db_v2';
 const LS_PRICE_HISTORY = 'adrice_price_history_v1';
+// Staging dla ręcznych korekt z rekoncyliacji (patrz sekcja 0 dopisku w RECONCILIATION_SESSION_LOG.md,
+// przypadek #2285) — CELOWO osobny klucz od `adrice_pending_adjustments` używanego przez index.html.
+// reconciliation.html tylko tu ZAPISUJE zgłoszenia (status 'pending_import'); nigdy nie dotyka
+// bezpośrednio prawdziwego salda Hub-a. Dopiero index.html, po ręcznym zatwierdzeniu przez
+// użytkownika, kopiuje zatwierdzony wpis do adrice_pending_adjustments i oznacza go tu jako 'imported'.
+const LS_RECONCILIATION_ADJUSTMENTS = 'adrice_reconciliation_adjustments';
 const SCOPE_COUNTRIES = ['pl','hu','de','lt','cz','sk','lv','pt','es'];
 const COUNTRY_NAMES = { pl:'Poland', hu:'Hungary', de:'Germany', lt:'Lithuania', cz:'Czechia', sk:'Slovakia', lv:'Latvia', pt:'Portugal', es:'Spain' };
 
@@ -396,7 +292,6 @@ let priceHistory = loadPriceHistory();
 let leadsData = [];       // {offerId, country, account, creationDate: Date, status, shipStatus, source}
 let leadsImportStats = {};
 let lastReportRows = [];
-let lastReportAdjustmentRows = [];
 let lastReportMonth = null;
 
 function loadPriceHistory() {
@@ -488,73 +383,9 @@ function initMonthSelector() {
     }
 }
 function onMonthChange() {
-    renderSanityCheck();
     renderPriceChangesThisMonth();
     document.getElementById('reportContainer').innerHTML = '';
     document.getElementById('exportReportBtn').style.display = 'none';
-}
-
-// ============================================================================
-// IMPORT ARCHIWALNEGO BACKUPU (opcjonalne uzupełnienie brakujących miesięcy)
-// ============================================================================
-function importArchiveBackup() {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = '.json';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = ev => {
-            try {
-                const imported = JSON.parse(ev.target.result);
-                const monthKeys = Object.keys(imported).filter(k => /^\d{4}-\d{2}$/.test(k));
-                if (monthKeys.length === 0) { alert('Plik nie wygląda jak backup AdRice (brak kluczy YYYY-MM).'); return; }
-                monthKeys.forEach(k => { historicalDB[k] = imported[k]; });
-                invalidatePriceTimelineCache();
-                renderSanityCheck();
-                renderPriceChangesThisMonth();
-                showNotif(`📂 Wczytano archiwalny backup jako uzupełniające źródło: ${monthKeys.length} miesięcy. Używany tylko dla miesięcy bez logów w aktualnej bazie.`, 5000);
-            } catch (err) { alert('Błąd odczytu pliku backupu.'); }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-function exportPriceHistory() {
-    const now = new Date();
-    const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    downloadFile(`adrice_price_history_${stamp}.json`, JSON.stringify(priceHistory, null, 2), 'application/json');
-    showNotif('💾 Pobrano kopię historii cen.');
-}
-function importPriceHistory() {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = '.json';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = ev => {
-            try {
-                const imported = JSON.parse(ev.target.result);
-                if (!imported || !imported.offers) { alert('Plik nie wygląda jak price_history.json.'); return; }
-                // scal (append-only, dedup) zamiast nadpisywać
-                Object.keys(imported.offers).forEach(offerId => {
-                    if (!priceHistory.offers[offerId]) priceHistory.offers[offerId] = { name: imported.offers[offerId].name || '', timeline: [] };
-                    const existing = priceHistory.offers[offerId];
-                    (imported.offers[offerId].timeline || []).forEach(entry => {
-                        const dup = existing.timeline.some(e => e.field === entry.field && e.changedAt === entry.changedAt && e.newValue === entry.newValue);
-                        if (!dup) existing.timeline.push(entry);
-                    });
-                });
-                invalidatePriceTimelineCache();
-                savePriceHistory();
-                renderPriceHistoryCoverage();
-                renderPriceChangesThisMonth();
-                showNotif('📂 Scalono zaimportowaną historię cen z bieżącą.');
-            } catch (err) { alert('Błąd odczytu pliku historii cen.'); }
-        };
-        reader.readAsText(file);
-    };
-    input.click();
 }
 
 // ============================================================================
@@ -588,8 +419,7 @@ function copyOfferHistoryScraper() {
 // ============================================================================
 
 function getDateGranularity() {
-    const el = document.getElementById('dateGranularity');
-    return el ? el.value : 'day'; // 'day' | 'exact'
+    return 'exact'; // 'day' | 'exact'
 }
 // Faktury liczone są za całe zakończone dni — domyślnie porównujemy datę leada z datą zmiany
 // ceny na poziomie DNIA (cały dzień zmiany = już nowa cena), niezależnie od godziny obu zdarzeń.
@@ -607,7 +437,7 @@ function getInvoicedObservations(offerId) {
             if (!ts) return;
             (log.items || []).forEach(it => {
                 if (it.id !== offerId) return;
-                obs.push({ price: it.price, timestamp: ts, invoiceNumber: log.invoiceNumber, mode: log.mode, monthKey: mk });
+                obs.push({ price: it.price, timestamp: ts, invoiceNumber: log.invoiceNumber, mode: log.mode, monthKey: mk, type: log.type });
             });
         });
     });
@@ -659,17 +489,6 @@ function getSnapshotChangeDates(offerId) {
         .map(e => new Date(e.changedAt))
         .sort((a, b) => a - b);
 }
-// Surowy timeline wpisów 'totalPayout' ze snapshotów — potrzebny tylko do diffowania kolejnych
-// uploadów w mergeSnapshotDiff (czy cena zmieniła się względem ostatniego znanego snapshotu).
-function getSnapshotTimeline(offerId) {
-    const offer = priceHistory.offers[offerId];
-    if (!offer) return [];
-    return (offer.timeline || [])
-        .filter(e => e.field === 'totalPayout' && e.source === 'snapshot_diff')
-        .slice()
-        .sort((a, b) => new Date(a.changedAt) - new Date(b.changedAt));
-}
-
 // Dla przejścia między dwoma sąsiednimi, realnie zaobserwowanymi poziomami cen, znajduje datę
 // granicy w malejącej kolejności pewności: dokładna historia AdRice -> snapshot diff -> środek okna.
 function findBoundaryDate(offerId, prevSegment, nextSegment) {
@@ -757,6 +576,77 @@ function computePriceChangesInMonth(targetMonth) {
     return changes;
 }
 
+// Diagnostyka: liczba zmian POLA payout w OFICJALNEJ historii AdRice (Sekcja A) w danym miesiącu —
+// NIEZALEŻNA od liczby realnych przejść cenowych w fakturach. Rozjazd między tymi dwoma liczbami
+// (np. #2285: 1 wg historii AdRice vs 2 wg faktur) to dokładnie sygnał, który złapał błąd na #2285 —
+// pośredni poziom ceny w fakturach nie odpowiadał żadnej zalogowanej zmianie payoutu, więc
+// prawdopodobnie był efektem chwilowej fluktuacji advertiser/native fee złapanej przez scraper.
+function getPayoutOnlyHistoryDatesInMonth(offerId, monthKey) {
+    const { start, end } = monthBounds(monthKey);
+    const offer = priceHistory.offers[offerId];
+    if (!offer) return [];
+    return (offer.timeline || [])
+        .filter(e => e.field === 'payout' && e.changedAt !== BASELINE_SENTINEL_DATE)
+        .map(e => new Date(e.changedAt))
+        .filter(d => d >= start && d <= end)
+        .sort((a, b) => a - b);
+}
+
+// Ustala konto (kod kraju) dla oferty — preferuje mapę z realnych leadów Sekcji B (najpewniejsza),
+// w jej braku spada do etykiety konta z ostatniego logu faktury (via resolveLogCountry, tak samo
+// jak reszta narzędzia radzi sobie ze starymi etykietami find/alcance).
+function resolveOfferAccount(offerId) {
+    const fromLeads = buildOfferCountryMap()[offerId];
+    if (fromLeads) return fromLeads;
+    const obs = getInvoicedObservations(offerId);
+    if (obs.length === 0) return null;
+    return resolveLogCountry(obs[obs.length - 1].type, offerId, {});
+}
+
+// ============================================================================
+// STAGING RĘCZNYCH KOREKT Z REKONCYLIACJI (patrz LS_RECONCILIATION_ADJUSTMENTS wyżej) —
+// reconciliation.html tylko tu zapisuje, nigdy bezpośrednio do salda Hub-a.
+// ============================================================================
+function loadReconciliationAdjustments() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(LS_RECONCILIATION_ADJUSTMENTS));
+        if (Array.isArray(raw)) return raw;
+    } catch (e) {}
+    return [];
+}
+function saveReconciliationAdjustmentsList(list) {
+    localStorage.setItem(LS_RECONCILIATION_ADJUSTMENTS, JSON.stringify(list));
+}
+function getReconciliationAdjustmentFor(offerId, country, month) {
+    return loadReconciliationAdjustments().find(a => a.offerId === offerId && a.country === country && a.month === month) || null;
+}
+// Upsert: dopóki zgłoszenie nie zostało zatwierdzone w Hub-ie (status 'pending_import'), można je
+// nadpisać poprawioną wartością zamiast tworzyć duplikat. Po 'imported' każde kolejne zgłoszenie
+// dla tej samej oferty/miesiąca traktowane jest jako NOWA, osobna korekta.
+function saveReconciliationAdjustment(offerId, country, month, amount, note) {
+    const list = loadReconciliationAdjustments();
+    const idx = list.findIndex(a => a.offerId === offerId && a.country === country && a.month === month && a.status === 'pending_import');
+    if (idx >= 0) {
+        list[idx].amount = amount;
+        list[idx].note = note || '';
+        list[idx].createdAt = new Date().toISOString();
+    } else {
+        list.push({ id: 'recon_' + Date.now(), offerId, country, month, amount, note: note || '', createdAt: new Date().toISOString(), status: 'pending_import' });
+    }
+    saveReconciliationAdjustmentsList(list);
+}
+
+function submitReconciliationAdjustment(offerId, country, month) {
+    const amountEl = document.getElementById(`reconAmount-${offerId}`);
+    const amount = parseFloat((amountEl.value || '').replace(',', '.'));
+    if (isNaN(amount) || amount === 0) { alert('Podaj niezerową kwotę korekty (dodatnia = dopłata, ujemna = rabat).'); return; }
+    if (!country) { alert('Nie udało się automatycznie ustalić konta (kraju) dla tej oferty — wgraj Sekcję B, żeby narzędzie znało przypisanie oferty do kraju.'); return; }
+    if (!confirm(`Zgłosić korektę ${amount.toFixed(2)} € dla oferty #${offerId} (${country.toUpperCase()}), miesiąc ${month}?\n\nTrafi do panelu zatwierdzania w index.html — NIE zostanie od razu dopisana do salda, dopóki tam ręcznie nie klikniesz "Zatwierdź".`)) return;
+    saveReconciliationAdjustment(offerId, country, month, amount, '');
+    showNotif(`📝 Zgłoszono korektę rekoncyliacji dla #${offerId} — zatwierdź ją w index.html, żeby trafiła na kolejną fakturę.`);
+    renderPriceChangesThisMonth();
+}
+
 function renderPriceChangesThisMonth() {
     const container = document.getElementById('priceChangesThisMonth');
     if (!container) return;
@@ -766,26 +656,44 @@ function renderPriceChangesThisMonth() {
     const changes = computePriceChangesInMonth(monthKey);
 
     if (changes.length === 0) {
-        container.innerHTML = `<div class="empty-state">Brak wykrytych zmian ceny w logach faktur dla ${monthKey} — wszystkie oferty miały stałą cenę przez cały miesiąc.</div>`;
+        container.innerHTML = `<div class="empty-state">Brak ofert ze zmianą ceny w ${monthKey}.</div>`;
         return;
     }
 
     const ids = [...new Set(changes.map(c => c.offerId))];
-    let html = `<div style="font-size:0.82rem; margin-bottom:0.75rem;">
-        <b>${ids.length}</b> ${ids.length === 1 ? 'oferta ze zmianą' : 'ofert(y) ze zmianą'} ceny w ${monthKey}:
-        ${ids.map(id => `<span class="tag tag-warn" style="margin:2px;">#${id}</span>`).join('')}
-    </div>
-    <table class="data-table"><thead><tr><th>Offer ID</th><th style="text-align:right">Stara cena</th><th style="text-align:right">Nowa cena</th><th>Data zmiany</th><th>Pewność daty</th></tr></thead><tbody>`;
-    changes.forEach(c => {
-        html += `<tr>
-            <td>#${c.offerId}</td>
-            <td style="text-align:right">${c.oldPrice.toFixed(2)} €</td>
-            <td style="text-align:right">${c.newPrice.toFixed(2)} €</td>
-            <td>${fmtDate(c.changedAt)}</td>
-            <td>${confidenceTag(c.confidence)}</td>
-        </tr>`;
+    let html = '<div style="display:flex; flex-direction:column; gap:0.6rem;">';
+
+    ids.forEach(id => {
+        const country = resolveOfferAccount(id);
+        const invoicedChangeCount = changes.filter(c => c.offerId === id).length;
+        const historyDates = getPayoutOnlyHistoryDatesInMonth(id, monthKey);
+        const mismatch = historyDates.length !== invoicedChangeCount;
+        const existing = country ? getReconciliationAdjustmentFor(id, country, monthKey) : null;
+
+        let statusHtml, formHtml = '';
+        if (existing && existing.status === 'imported') {
+            statusHtml = `<span class="tag tag-ok">✅ zatwierdzone (${existing.amount > 0 ? '+' : ''}${existing.amount.toFixed(2)} €)</span>`;
+        } else {
+            statusHtml = existing ? `<span class="tag tag-info">⏳ zgłoszone (${existing.amount > 0 ? '+' : ''}${existing.amount.toFixed(2)} €)</span>` : '';
+            formHtml = `<div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; margin-top:0.4rem;">
+                <input type="number" step="0.01" id="reconAmount-${id}" value="${existing ? existing.amount : ''}" placeholder="Kwota €" style="width:110px; padding:0.4rem; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:6px; color:var(--text-main);">
+                <button class="btn secondary" style="padding:0.4rem 0.8rem;" onclick="submitReconciliationAdjustment('${id}', '${country || ''}', '${monthKey}')">💾 ${existing ? 'Zapisz poprawkę' : 'Zgłoś korektę'}</button>
+            </div>`;
+        }
+
+        html += `<div class="panel" style="margin-bottom:0; padding:0.9rem 1.1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div>
+                    <b>#${id}</b> — ${country ? country.toUpperCase() : '<span style="color:var(--text-muted)">nieznany kraj</span>'}
+                    ${mismatch ? ' <span class="tag tag-danger" title="Liczba zmian payoutu w historii AdRice różni się od liczby przejść cenowych w fakturach — sprawdź ręcznie.">⚠️ niezgodność</span>' : ''}
+                </div>
+                ${statusHtml}
+            </div>
+            ${formHtml}
+        </div>`;
     });
-    html += `</tbody></table>`;
+    html += '</div>';
+
     container.innerHTML = html;
 }
 
@@ -800,54 +708,6 @@ function priceAt(offerId, date) {
     if (applicable) return { value: applicable.value, confidence: applicable.confidence, changedAt: applicable.changedAt.toISOString(), source: 'invoiced-price' };
     const earliest = tl[0];
     return { value: earliest.value, confidence: 'assumed', changedAt: earliest.changedAt.toISOString(), source: 'fallback-earliest-known' };
-}
-
-async function onSnapshotFilesSelected(fileList) {
-    if (!fileList || fileList.length === 0) return;
-    const statEl = document.getElementById('stat-snapshot');
-    statEl.innerText = 'Przetwarzanie...';
-    const scrapedAtISO = new Date().toISOString();
-    let totalChanged = 0, totalNew = 0, totalRows = 0;
-    for (const file of fileList) {
-        const rows = await parseCSVFile(file, { delimiter: ';' });
-        totalRows += rows.length;
-        const { changedCount, newCount } = mergeSnapshotDiff(rows, scrapedAtISO);
-        totalChanged += changedCount; totalNew += newCount;
-    }
-    document.getElementById('dz-snapshot').classList.add('filled');
-    statEl.innerText = `✅ ${totalRows} ofert wczytane. Nowe: ${totalNew}, zmienione ceny: ${totalChanged}.`;
-    renderPriceHistoryCoverage();
-    renderPriceChangesThisMonth();
-    showNotif(`💶 Snapshot cen scalony: ${totalNew} nowych ofert, ${totalChanged} wykrytych zmian ceny.`);
-}
-
-function mergeSnapshotDiff(rows, scrapedAtISO) {
-    let changedCount = 0, newCount = 0;
-    rows.forEach(row => {
-        const offerId = String(row['Offer_ID'] || '').trim();
-        const name = String(row['Offer_Name'] || '').trim();
-        const payout = parseEuroDecimal(row['Payout']);
-        if (!offerId) return;
-
-        if (!priceHistory.offers[offerId]) priceHistory.offers[offerId] = { name, timeline: [] };
-        const offer = priceHistory.offers[offerId];
-        if (name) offer.name = name;
-
-        const tl = getSnapshotTimeline(offerId);
-        const last = tl[tl.length - 1];
-
-        if (!last) {
-            offer.timeline.push({ field: 'totalPayout', oldValue: null, newValue: payout, changedAt: scrapedAtISO, source: 'snapshot_diff', capturedAt: scrapedAtISO, confidence: 'inferred' });
-            newCount++;
-        } else if (Math.abs(last.newValue - payout) > 0.001) {
-            offer.timeline.push({ field: 'totalPayout', oldValue: last.newValue, newValue: payout, changedAt: scrapedAtISO, source: 'snapshot_diff', capturedAt: scrapedAtISO, confidence: 'inferred' });
-            changedCount++;
-        }
-    });
-    priceHistory.lastScrapeAt = scrapedAtISO;
-    invalidatePriceTimelineCache();
-    savePriceHistory();
-    return { changedCount, newCount };
 }
 
 async function onHistoryFilesSelected(fileList) {
@@ -905,50 +765,47 @@ function renderPriceHistoryCoverage() {
     let rows = offerIds.map(id => {
         const offer = priceHistory.offers[id];
         const historyDates = getHistoryChangeDates(id);
-        const snapshotDates = getSnapshotChangeDates(id);
-        const allDates = [...historyDates, ...snapshotDates].sort((a, b) => a - b);
         return {
             id, name: offer.name || '(brak nazwy)',
             exactCount: historyDates.length,
-            snapshotCount: snapshotDates.length,
-            earliest: allDates[0] || null,
-            latest: allDates[allDates.length - 1] || null
+            earliest: historyDates[0] || null,
+            latest: historyDates[historyDates.length - 1] || null
         };
-    }).filter(r => r.exactCount > 0 || r.snapshotCount > 0)
+    }).filter(r => r.exactCount > 0)
       .sort((a, b) => (b.latest ? b.latest.getTime() : 0) - (a.latest ? a.latest.getTime() : 0));
 
     let html = '';
     if (rows.length === 0) {
-        html += '<div class="empty-state">Brak danych o datach zmian cen — wgraj snapshot ofert lub dokładną historię AdRice powyżej. Wartości cen w raporcie i tak zawsze pochodzą z realnych faktur; ta sekcja tylko dostarcza daty granic między poziomami cen.</div>';
+        html += '<div class="empty-state">Brak danych o datach zmian cen — wgraj historię AdRice powyżej.</div>';
     } else {
-        html += `<div class="stat-row">
-            <div class="stat-box"><div class="stat-label">Ofert z kandydackimi datami granic</div><div class="stat-value">${rows.length}</div></div>
-            <div class="stat-box"><div class="stat-label">Ostatnie skanowanie</div><div class="stat-value" style="font-size:0.95rem;">${priceHistory.lastScrapeAt ? fmtDate(new Date(priceHistory.lastScrapeAt)) : '—'}</div></div>
-        </div>
-        <table class="data-table"><thead><tr><th>Offer ID</th><th>Nazwa</th><th>Dokładne daty (AdRice)</th><th>Daty ze snapshotu</th><th>Najwcześniejsza</th><th>Najnowsza</th></tr></thead><tbody>`;
+        html += `<details style="margin-bottom:0.5rem;">
+        <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; padding:0.4rem 0;">📄 Ofert z datami granic (${rows.length})</summary>
+        <table class="data-table" style="margin-top:0.5rem;"><thead><tr><th>Offer ID</th><th>Nazwa</th><th>Liczba zmian</th><th>Najwcześniejsza</th><th>Najnowsza</th></tr></thead><tbody>`;
         rows.slice(0, 300).forEach(r => {
             html += `<tr>
                 <td>#${r.id}</td>
                 <td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</td>
                 <td>${r.exactCount}</td>
-                <td>${r.snapshotCount}</td>
                 <td>${r.earliest ? fmtDate(r.earliest) : '—'}</td>
                 <td>${r.latest ? fmtDate(r.latest) : '—'}</td>
             </tr>`;
         });
         html += `</tbody></table>`;
         if (rows.length > 300) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">Pokazano 300 z ${rows.length} ofert.</div>`;
+        html += `</details>`;
     }
 
     const gaps = computeBoundaryGaps();
     if (gaps.length > 0) {
-        html += `<div class="confidence-banner" style="margin-top:1.25rem;">⚠️ <b>${gaps.length} realnych zmian ceny w fakturach bez dokładnej daty granicy</b> — cena w fakturach dla tych ofert się zmieniła, ale ani dokładna historia AdRice, ani snapshot cen nie mają wpisu w oknie między fakturą ze starą a fakturą z nową ceną, więc data granicy to czyste przybliżenie (środek okna). <b>Wartości "Powinno Być" są nadal policzone z realnych stawek</b> — obniżona pewność dotyczy TYLKO tego, kiedy dokładnie leady przechodzą na nową cenę. Wgraj historię AdRice dla tych ofert, żeby to poprawić.</div>
-        <table class="data-table"><thead><tr><th>Offer ID</th><th style="text-align:right">Stara cena</th><th style="text-align:right">Nowa cena</th><th>Okno (od-do)</th><th>Użyta data (środek okna)</th></tr></thead><tbody>`;
+        html += `<details>
+        <summary style="cursor:pointer; font-size:0.85rem; font-weight:600; padding:0.4rem 0; color:#fbbf24;">⚠️ ${gaps.length} zmian bez dokładnej daty granicy</summary>
+        <table class="data-table" style="margin-top:0.5rem;"><thead><tr><th>Offer ID</th><th style="text-align:right">Stara cena</th><th style="text-align:right">Nowa cena</th><th>Okno (od-do)</th><th>Użyta data (środek okna)</th></tr></thead><tbody>`;
         gaps.slice(0, 100).forEach(g => {
             html += `<tr><td>#${g.offerId}</td><td style="text-align:right">${g.oldPrice.toFixed(2)} €</td><td style="text-align:right">${g.newPrice.toFixed(2)} €</td><td>${fmtDate(g.windowStart)} → ${fmtDate(g.windowEnd)}</td><td>${fmtDate(g.usedDate)}</td></tr>`;
         });
         html += `</tbody></table>`;
         if (gaps.length > 100) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">Pokazano 100 z ${gaps.length}.</div>`;
+        html += `</details>`;
     }
 
     container.innerHTML = html;
@@ -960,13 +817,13 @@ function confidenceTag(c) {
         inferred: ['tag-warn', 'inferred'],
         assumed: ['tag-danger', 'assumed'],
         approx: ['tag-danger', 'data granicy przybliżona'],
+        'manual-review': ['tag-info', 'do ręcznego sprawdzenia'],
         'no-data': ['tag-danger', 'brak danych'],
         'not-invoiced': ['tag-muted', 'niezafakturowane'],
         'exact-cadence': ['tag-ok', 'cykl std.'],
         'off-cadence': ['tag-warn', 'poza cyklem'],
         'off-cadence-approx': ['tag-warn', 'poza cyklem (przybliż.)'],
         cumulative: ['tag-info', 'kumulacyjny (AUTOMAT)'],
-        adjustment: ['tag-info', 'korekta salda'],
         'cross-month-boundary': ['tag-danger', 'granica miesięcy'],
         'legacy-account-label': ['tag-warn', 'stara etykieta konta']
     };
@@ -978,13 +835,13 @@ function confidenceTag(c) {
 // SEKCJA B — LEADY Z DATĄ
 // ============================================================================
 function getExcludedStatusSet() {
-    return document.getElementById('statusExcludeConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+    return [];
 }
 function getExcludedShipStatusSet() {
-    return document.getElementById('shipStatusExcludeConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+    return ['Not Shipped'];
 }
 function getShipStatusExemptSet() {
-    return document.getElementById('shipStatusExemptConfig').value.split(',').map(s => s.trim()).filter(Boolean);
+    return ['OK - Pending'];
 }
 // Potwierdzony lead (Positivi): NIE ma statusu z listy wykluczeń, i NIE ma ship_status z listy
 // wykluczeń — chyba że jego status jest na liście "zwolnionych" (np. OK - Pending naturalnie
@@ -998,7 +855,7 @@ function isConfirmedLead(lead) {
     return true;
 }
 function getPricingDateMode() {
-    return document.getElementById('pricingDateMode').value; // 'creation' | 'confirm'
+    return 'creation'; // 'creation' | 'confirm'
 }
 // Zwraca {date, usedFallback} — data, wg której ustalamy cenę i przynależność do miesiąca dla danego leada.
 function getPricingDate(lead) {
@@ -1009,7 +866,7 @@ function getPricingDate(lead) {
     return { date: lead.creationDate, usedFallback: false };
 }
 function getSourceFilterActive() {
-    return document.getElementById('sourceFilterToggle').checked;
+    return true;
 }
 
 async function onAdminFileSelected(file, accountName, dzId, statId) {
@@ -1049,7 +906,6 @@ async function onAdminFileSelected(file, accountName, dzId, statId) {
     statEl.innerText = `✅ ${matched} / ${rows.length} wierszy dopasowanych (kraj poza zakresem: ${skippedCountry}, brak SKU→ID: ${skippedNoOffer}, odfiltr. źródło: ${skippedSource})`;
 
     renderLeadsSummary();
-    renderSanityCheck();
     showNotif(`📅 ${accountName}: wczytano ${matched} leadów z realną datą.`);
 }
 
@@ -1060,7 +916,6 @@ function clearLeadsData() {
     ['dz-uncapped', 'dz-find', 'dz-alcance'].forEach(id => document.getElementById(id).classList.remove('filled'));
     ['stat-uncapped', 'stat-find', 'stat-alcance'].forEach(id => document.getElementById(id).innerText = '');
     renderLeadsSummary();
-    renderSanityCheck();
 }
 
 function renderLeadsSummary() {
@@ -1081,54 +936,6 @@ function renderLeadsSummary() {
         html += `<span class="tag tag-info">${c.toUpperCase()}: ${byCountry[c]}</span>`;
     });
     html += `</div>`;
-    container.innerHTML = html;
-}
-
-
-function renderSanityCheck() {
-    const container = document.getElementById('sanityCheckPanel');
-    const monthKey = document.getElementById('activeMonth').value;
-    if (leadsData.length === 0) {
-        container.innerHTML = '<div class="empty-state">Wgraj leady w Sekcji B, żeby zobaczyć porównanie z bazą Hub-a.</div>';
-        return;
-    }
-    const { start, end } = monthBounds(monthKey);
-
-    const counted = {}; // offerId|country -> count
-    leadsData.forEach(l => {
-        if (!isConfirmedLead(l)) return;
-        const { date: pricingDate } = getPricingDate(l);
-        if (pricingDate < start || pricingDate > end) return;
-        const key = l.offerId + '|' + l.country;
-        counted[key] = (counted[key] || 0) + 1;
-    });
-
-    const keys = Object.keys(counted);
-    if (keys.length === 0) {
-        container.innerHTML = `<div class="empty-state">Brak potwierdzonych leadów (wg aktualnej listy statusów) w wybranym miesiącu (${monthKey}) w wczytanych plikach.</div>`;
-        return;
-    }
-
-    // Zafakturowano liczymy z LOGÓW (ta sama, już zweryfikowana ścieżka co Sekcja C), a nie ze
-    // słownika kumulacyjnego invoicingDB[miesiąc][kraj][ID] — ten drugi bywa niewiarygodny przez
-    // historię migracji v3 (czasem zdublowany, czasem zaniżony, zależnie od tego czy dana oferta
-    // akurat "złapała się" na warunek kopiowania w przycisku migracji w index.html).
-    const actualFromLogs = computeActualForMonth(monthKey);
-
-    let html = `<table class="data-table"><thead><tr><th>Offer ID</th><th>Kraj</th><th>Potwierdzone leady (Administration)</th><th>Zafakturowano wg logów Hub</th><th>Różnica</th></tr></thead><tbody>`;
-    keys.sort((a, b) => counted[b] - counted[a]).slice(0, 200).forEach(key => {
-        const [offerId, country] = key.split('|');
-        const adminCount = counted[key];
-        const hubCount = (actualFromLogs[key] && actualFromLogs[key].leadCount) || 0;
-        const diff = adminCount - hubCount;
-        html += `<tr>
-            <td>#${offerId}</td><td>${country.toUpperCase()}</td>
-            <td>${adminCount}</td><td>${hubCount}</td>
-            <td style="font-weight:700; color:${Math.abs(diff) > 0 ? '#fbbf24' : '#34d399'}">${diff > 0 ? '+' : ''}${diff}</td>
-        </tr>`;
-    });
-    html += `</tbody></table>
-    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.6rem;">Uwaga: "Zafakturowano wg logów Hub" to suma z logów potwierdzeń za cały miesiąc (nie tylko potwierdzone do dziś) — różnice na koniec trwającego miesiąca są normalne. Użyj tego panelu głównie dla <b>zamkniętych</b> miesięcy, żeby skalibrować listę statusów powyżej.</div>`;
     container.innerHTML = html;
 }
 
@@ -1237,23 +1044,17 @@ function computeActualForMonth(targetMonth) {
         });
     });
 
-    // Korekty (pendingAdjustments, kwoty ryczałtowe nieprzypisane do oferty) są jawnie tagowane
-    // polem adj.month — konsumowane bywają w DOWOLNYM późniejszym miesiącu, w dowolnym trybie
-    // (typowo AUTOMAT), więc skanujemy WSZYSTKIE znane miesiące i dopasowujemy po adj.month,
-    // niezależnie od trybu/zakresu logu, w którym zostały faktycznie rozliczone.
-    getAllKnownMonthKeys().forEach(mk => {
-        getMonthLogs(mk).forEach(log => {
-            (log.adjustments || []).forEach(adj => {
-                if (adj.month !== targetMonth) return;
-                const acct = (adj.account || log.type.toLowerCase());
-                const key = 'ADJUSTMENT|' + acct;
-                if (!actual[key]) actual[key] = { offerId: 'ADJUSTMENT', country: acct, value: 0, leadCount: 0, confidence: new Set(), logsInvolved: [] };
-                actual[key].value += (adj.amount || 0);
-                actual[key].confidence.add('adjustment');
-                actual[key].logsInvolved.push({ invoiceNumber: log.invoiceNumber, timestamp: log.timestamp, delta: 0, price: adj.amount, mode: 'KOREKTA SALDA (konsumpcja w ' + mk + ')', monthKey: mk });
-            });
-        });
-    });
+    // UWAGA (2026-07-29, poprawka błędu podwójnego liczenia): `log.adjustments[]` na fakturze
+    // konsumującej korektę salda NIE JEST doliczane tutaj do wartości. Zweryfikowano na realnych
+    // danych: gdy użytkownik klika "przenieś do salda" w index.html, powstają OD RAZU DWA wpisy tej
+    // samej kwoty — (1) log "PRZENIESIENIE_DO_SALDA" z pełnym rozbiciem per-lead, zapisany w
+    // logach WŁAŚCIWEGO miesiąca (`adj.month`), ORAZ (2) kopia w `adjustments[]` na fakturze, która
+    // PÓŹNIEJ faktycznie tę korektę wypłaca (inny, późniejszy miesiąc). Wpis (1) jest już w pełni
+    // policzony przez zwykłą pętlę `log.items` powyżej (dla `mk === targetMonth` liczymy WSZYSTKIE
+    // logi tego miesiąca, niezależnie od trybu) — doliczanie (2) tutaj było czystym podwójnym
+    // liczeniem tej samej kwoty. Potwierdzone identycznymi kwotami/pozycjami po stronie HU/PT/ES
+    // dla czerwca 2026 (błąd dawał +1785,50 € ponad realną sumę). Historia AdRice/Sekcja A nie ma
+    // tu nic do rzeczy — to był wyłącznie błąd w tej funkcji.
 
     return actual;
 }
@@ -1261,17 +1062,36 @@ function computeActualForMonth(targetMonth) {
 function computeShouldBeForMonth(targetMonth) {
     const { start: monthStart, end: monthEnd } = monthBounds(targetMonth);
     const shouldBe = {};
+    // Oferty z REALNĄ zmianą ceny w trakcie tego miesiąca (patrz computePriceChangesInMonth) —
+    // wielosegmentowe rozbijanie leadów na podstawie zaobserwowanych poziomów cen okazało się
+    // zawodne (#2285: automat wyliczył 811€, realnie było 97€, bo pośredni poziom ceny w
+    // fakturach nie odpowiadał żadnej realnej, trwałej zmianie payoutu). Nadal WYLICZAMY liczbę
+    // (przydatna jako punkt odniesienia do ręcznego sprawdzenia — użytkownik i tak robi własne
+    // wyliczenie i chce mieć się z czym porównać), ale tagujemy 'manual-review' i WYKLUCZAMY z
+    // sum/tota li w renderReport() — automat może się mylić, więc nie ufamy mu w agregatach.
+    const offersNeedingReview = new Set(computePriceChangesInMonth(targetMonth).map(c => c.offerId));
 
     leadsData.forEach(lead => {
         if (!isConfirmedLead(lead)) return;
         const { date: pricingDate, usedFallback } = getPricingDate(lead);
         if (pricingDate < monthStart || pricingDate > monthEnd) return;
         const key = lead.offerId + '|' + lead.country;
-        const priceInfo = priceAt(lead.offerId, pricingDate);
         if (!shouldBe[key]) shouldBe[key] = { offerId: lead.offerId, country: lead.country, value: 0, leadCount: 0, confidence: new Set(), leadsDetail: [] };
+
+        const priceInfo = priceAt(lead.offerId, pricingDate);
         const val = priceInfo ? priceInfo.value : 0;
         shouldBe[key].value += val;
         shouldBe[key].leadCount += 1;
+
+        if (offersNeedingReview.has(lead.offerId)) {
+            shouldBe[key].confidence.add('manual-review');
+            shouldBe[key].leadsDetail.push({
+                pricingDate, creationDate: lead.creationDate, confirmDate: lead.confirmDate, usedFallback,
+                price: val, confidence: 'manual-review', account: lead.account
+            });
+            return;
+        }
+
         let conf = priceInfo ? priceInfo.confidence : 'no-data';
         if (usedFallback) conf += '+confirm-date-missing';
         shouldBe[key].confidence.add(conf);
@@ -1289,32 +1109,47 @@ function computeReconciliation(targetMonth) {
     const actual = computeActualForMonth(targetMonth);
     const keys = new Set([...Object.keys(shouldBe), ...Object.keys(actual)]);
     const rows = [];
-    const adjustmentRows = [];
 
     keys.forEach(key => {
-        if (key.startsWith('ADJUSTMENT|')) {
-            const ac = actual[key];
-            adjustmentRows.push({ country: ac.country, value: ac.value, logsInvolved: ac.logsInvolved });
-            return;
-        }
         const sb = shouldBe[key] || { value: 0, leadCount: 0, confidence: new Set(['no-lead-data']), leadsDetail: [] };
         const ac = actual[key] || { value: 0, leadCount: 0, confidence: new Set(['not-invoiced']), logsInvolved: [] };
         const [offerId, country] = key.split('|');
+        const needsManualReview = sb.confidence.has('manual-review');
         const delta = sb.value - ac.value;
         let flag = 'ZGODNE';
-        if (delta > 0.5) flag = 'NIEDOFAKTUROWANO';
-        else if (delta < -0.5) flag = 'NADFAKTUROWANO';
+        if (needsManualReview) {
+            // Oferta ze zmianą ceny w miesiącu — automatyczna wartość jest POKAZANA (do ręcznego
+            // porównania), ale nigdy nie klasyfikowana jako NIEDO/NADFAKTUROWANO — nie ufamy jej
+            // na tyle, żeby sugerować konkretną akcję; wyklucza się też z sum w renderReport().
+            flag = 'DO_SPRAWDZENIA';
+        } else if (Math.abs(delta) > 0.5) {
+            // Różnica przy STABILNEJ cenie przez cały miesiąc — jeśli liczba leadów się różni
+            // (Administration vs Hub), to zwykłe opóźnienie tygodniowe, które samo się wyrówna w
+            // kolejnej fakturze AUTOMAT — użytkownik i tak to robi co tydzień, więc NIE flagujemy
+            // tego tutaj jako NIEDO/NADFAKTUROWANO (zostaje ZGODNE). Flagujemy tylko gdy różnica
+            // WARTOŚCI utrzymuje się mimo że liczba leadów się zgadza — to nie da się wytłumaczyć
+            // zwykłym opóźnieniem ilościowym (rzadki edge case, np. zmiana ceny dokładnie na
+            // granicy miesiąca — patrz tag cross-month-boundary).
+            const leadCountMismatch = sb.leadCount !== ac.leadCount;
+            if (!leadCountMismatch) flag = delta > 0 ? 'NIEDOFAKTUROWANO' : 'NADFAKTUROWANO';
+        }
 
         rows.push({
             offerId, country, shouldBeValue: sb.value, actualValue: ac.value, delta,
-            shouldBeLeads: sb.leadCount, actualLeads: ac.leadCount, flag,
+            shouldBeLeads: sb.leadCount, actualLeads: ac.leadCount, flag, needsManualReview,
             shouldBeConfidence: [...sb.confidence], actualConfidence: [...ac.confidence],
             leadsDetail: sb.leadsDetail, logsInvolved: ac.logsInvolved
         });
     });
 
-    rows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-    return { rows, adjustmentRows };
+    // Wiersze DO_SPRAWDZENIA zawsze na górze — wymagają uwagi niezależnie od tego, jak duża
+    // byłaby ewentualna rozbieżność; reszta sortowana jak dotychczas, malejąco po |delta|.
+    rows.sort((a, b) => {
+        if (a.flag === 'DO_SPRAWDZENIA' && b.flag !== 'DO_SPRAWDZENIA') return -1;
+        if (b.flag === 'DO_SPRAWDZENIA' && a.flag !== 'DO_SPRAWDZENIA') return 1;
+        return Math.abs(b.delta || 0) - Math.abs(a.delta || 0);
+    });
+    return { rows };
 }
 
 function runReconciliation() {
@@ -1326,24 +1161,15 @@ function runReconciliation() {
     if (getAllInvoicedOfferIds().length === 0) {
         if (!confirm('W bazie Hub-a nie znaleziono żadnych logów faktur — ceny biorą się z realnie zafakturowanych stawek, więc bez logów raport policzy się z ceną 0 dla wszystkich leadów. Kontynuować mimo to?')) return;
     }
-    const { rows, adjustmentRows } = computeReconciliation(monthKey);
+    const { rows } = computeReconciliation(monthKey);
     lastReportRows = rows;
-    lastReportAdjustmentRows = adjustmentRows;
     lastReportMonth = monthKey;
-    document.getElementById('offerFilterInput').value = '';
-    renderReport(rows, adjustmentRows, monthKey);
-}
-
-function applyOfferFilter() {
-    if (!lastReportMonth) return;
-    const q = document.getElementById('offerFilterInput').value.trim().toLowerCase();
-    const filtered = q ? lastReportRows.filter(r => r.offerId.toLowerCase().includes(q)) : lastReportRows;
-    renderReport(filtered, lastReportAdjustmentRows, lastReportMonth, filtered !== lastReportRows);
+    renderReport(rows, monthKey);
 }
 
 let currentRenderedRows = [];
 
-function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
+function renderReport(rows, monthKey, isFiltered) {
     const container = document.getElementById('reportContainer');
     currentRenderedRows = rows;
     document.getElementById('exportReportBtn').style.display = lastReportRows.length ? 'inline-block' : 'none';
@@ -1353,11 +1179,16 @@ function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
         return;
     }
 
-    const totalShouldBe = rows.reduce((s, r) => s + r.shouldBeValue, 0);
-    const totalActual = rows.reduce((s, r) => s + r.actualValue, 0) + adjustmentRows.reduce((s, a) => s + a.value, 0);
+    // Wiersze DO_SPRAWDZENIA wykluczone z OBU stron sumy (nie tylko Powinno Być) — inaczej
+    // "Różnica netto" myląco mieszałaby zaufaną resztę raportu z Zafakturowano tych ofert bez
+    // odpowiadającego im Powinno Być, dając fałszywie ogromną, niewytłumaczalną różnicę.
+    const trustedRows = rows.filter(r => r.flag !== 'DO_SPRAWDZENIA');
+    const totalShouldBe = trustedRows.reduce((s, r) => s + r.shouldBeValue, 0);
+    const totalActual = trustedRows.reduce((s, r) => s + r.actualValue, 0);
     const totalDelta = totalShouldBe - (totalActual);
     const under = rows.filter(r => r.flag === 'NIEDOFAKTUROWANO');
     const over = rows.filter(r => r.flag === 'NADFAKTUROWANO');
+    const manualReviewRows = rows.filter(r => r.flag === 'DO_SPRAWDZENIA');
 
     const noDataCount = rows.filter(r => r.shouldBeConfidence.some(c => c.startsWith('no-data'))).length;
     const assumedCount = rows.filter(r => r.shouldBeConfidence.some(c => c.startsWith('assumed'))).length;
@@ -1367,21 +1198,22 @@ function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
     const boundaryCount = rows.filter(r => r.actualConfidence.includes('cross-month-boundary')).length;
 
     let banner = '';
-    if (noDataCount || assumedCount || approxBoundaryCount || offCadenceCount || notInvoicedCount || boundaryCount) {
-        banner = `<div class="confidence-banner">⚠️ <b>Uwagi co do pewności danych dla ${monthKey}:</b><br>`;
-        if (noDataCount) banner += `• ${noDataCount} pozycji nie ma ŻADNEJ zafakturowanej ceny w logach Hub-a dla tej oferty (użyto ceny 0) — sprawdź, czy oferta faktycznie jeszcze nie była fakturowana, albo czy offer ID się zgadza.<br>`;
-        if (assumedCount) banner += `• ${assumedCount} pozycji ma leady sprzed pierwszej znanej faktury dla tej oferty — użyto najwcześniej znanej realnej ceny (assumed).<br>`;
-        if (approxBoundaryCount) banner += `• ${approxBoundaryCount} pozycji ma cenę policzoną z realnej faktury, ale z PRZYBLIŻONĄ datą granicy zmiany ceny (brak dokładnej daty w Sekcji A dla tego przejścia) — wartość powinna być poprawna, ale podział leadów między starą/nową cenę jest orientacyjny. Szczegóły w Sekcji A.<br>`;
-        if (offCadenceCount) banner += `• ${offCadenceCount} pozycji dotyczy zatwierdzeń poza standardowym cyklem pon./pt. — okres przybliżony.<br>`;
-        if (notInvoicedCount) banner += `• ${notInvoicedCount} pozycji ma leady, których nie odnaleziono w ŻADNYM logu faktury (możliwe: jeszcze niezafakturowane, albo log w innym miesiącu).<br>`;
-        if (boundaryCount) banner += `• ${boundaryCount} pozycji zawiera fakturę na granicy miesięcy, której zakres dat zachodzi na sąsiedni miesiąc — jej PEŁNA wartość liczy się w raportach OBU miesięcy (bo nie da się rozbić delty na dni). <b>Nie sumuj tych dwóch raportów miesięcznych razem</b>, bo policzysz tę fakturę podwójnie.<br>`;
+    if (noDataCount || assumedCount || approxBoundaryCount || offCadenceCount || notInvoicedCount || boundaryCount || manualReviewRows.length) {
+        banner = `<div class="confidence-banner">⚠️ <b>Uwagi dla ${monthKey}:</b><br>`;
+        if (manualReviewRows.length) banner += `• ${manualReviewRows.length} ofert ma zmianę ceny w trakcie miesiąca — wykluczone z sum, korekta w panelu "⚡ Oferty ze zmianą ceny" powyżej.<br>`;
+        if (noDataCount) banner += `• ${noDataCount} pozycji bez żadnej zafakturowanej ceny w logach (użyto 0 €).<br>`;
+        if (assumedCount) banner += `• ${assumedCount} pozycji sprzed pierwszej znanej faktury tej oferty — użyto najwcześniej znanej ceny.<br>`;
+        if (approxBoundaryCount) banner += `• ${approxBoundaryCount} pozycji z przybliżoną datą granicy zmiany ceny (brak dokładnej daty w Sekcji A).<br>`;
+        if (offCadenceCount) banner += `• ${offCadenceCount} pozycji poza standardowym cyklem pon./pt. — okres przybliżony.<br>`;
+        if (notInvoicedCount) banner += `• ${notInvoicedCount} pozycji bez żadnego logu faktury w tym miesiącu.<br>`;
+        if (boundaryCount) banner += `• ${boundaryCount} pozycji na granicy miesięcy liczy się w OBU raportach — nie sumuj dwóch sąsiednich miesięcy razem.<br>`;
         banner += `</div>`;
     }
 
     let html = banner + `
     <div class="stat-row">
         <div class="stat-box"><div class="stat-label">Powinno Być (razem)</div><div class="stat-value">${totalShouldBe.toFixed(2)} €</div></div>
-        <div class="stat-box"><div class="stat-label">Faktycznie Zafakturowano (razem, wraz z korektami)</div><div class="stat-value">${totalActual.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Faktycznie Zafakturowano (razem)</div><div class="stat-value">${totalActual.toFixed(2)} €</div></div>
         <div class="stat-box"><div class="stat-label">Różnica netto</div><div class="stat-value" style="color:${Math.abs(totalDelta) < 0.5 ? '#34d399' : (totalDelta > 0 ? '#fbbf24' : '#f87171')}">${totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(2)} €</div></div>
         <div class="stat-box"><div class="stat-label">Niedofakturowano / Nadfakturowano</div><div class="stat-value" style="font-size:1.1rem;"><span style="color:#fbbf24">${under.length}</span> / <span style="color:#f87171">${over.length}</span> pozycji</div></div>
     </div>
@@ -1391,26 +1223,26 @@ function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
     </tr></thead><tbody>`;
 
     rows.forEach((r, idx) => {
-        const flagCls = r.flag === 'ZGODNE' ? 'tag-ok' : (r.flag === 'NIEDOFAKTUROWANO' ? 'tag-warn' : 'tag-danger');
+        const isManualReview = r.flag === 'DO_SPRAWDZENIA';
+        const flagCls = isManualReview ? 'tag-info' : (r.flag === 'ZGODNE' ? 'tag-ok' : (r.flag === 'NIEDOFAKTUROWANO' ? 'tag-warn' : 'tag-danger'));
+        // Dla DO_SPRAWDZENIA POKAZUJEMY wyliczoną wartość (punkt odniesienia do ręcznego
+        // porównania), ale wyszarzoną i z gwiazdką — nie wliczona do sum, automat mógł się mylić.
+        const shouldBeCell = `${r.shouldBeValue.toFixed(2)} €${isManualReview ? ' *' : ''}`;
+        const deltaCell = `${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €${isManualReview ? ' *' : ''}`;
+        const deltaColor = isManualReview ? 'var(--text-muted)' : (Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171'));
+        const shouldBeStyle = isManualReview ? 'color:var(--text-muted); font-style:italic;' : '';
         html += `<tr onclick="openDrilldown(${idx})">
             <td>#${r.offerId}</td><td>${r.country.toUpperCase()}</td>
-            <td style="text-align:right">${r.shouldBeValue.toFixed(2)} €</td>
+            <td style="text-align:right; ${shouldBeStyle}" title="${isManualReview ? 'Automatyczne wyliczenie, niepewne — sprawdź ręcznie i porównaj (nie wliczone do sum powyżej)' : ''}">${shouldBeCell}</td>
             <td style="text-align:right">${r.actualValue.toFixed(2)} €</td>
-            <td style="text-align:right; font-weight:700; color:${Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171')}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €</td>
+            <td style="text-align:right; font-weight:700; color:${deltaColor}; ${isManualReview ? 'font-style:italic;' : ''}" title="${isManualReview ? 'Automatyczne wyliczenie, niepewne — sprawdź ręcznie i porównaj (nie wliczone do sum powyżej)' : ''}">${deltaCell}</td>
             <td>${r.shouldBeLeads} / ${r.actualLeads}</td>
             <td><span class="tag ${flagCls}">${r.flag}</span></td>
             <td>${[...new Set([...r.shouldBeConfidence, ...r.actualConfidence])].map(confidenceTag).join(' ')}</td>
         </tr>`;
     });
     html += `</tbody></table>`;
-
-    if (adjustmentRows.length > 0) {
-        html += `<h3>Korekty salda ujęte w tym miesiącu</h3><table class="data-table"><thead><tr><th>Konto</th><th style="text-align:right">Kwota</th></tr></thead><tbody>`;
-        adjustmentRows.forEach(a => {
-            html += `<tr><td>${a.country.toUpperCase()}</td><td style="text-align:right">${a.value.toFixed(2)} €</td></tr>`;
-        });
-        html += `</tbody></table>`;
-    }
+    if (manualReviewRows.length) html += `<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">* = wyliczenie automatu, niepewne, nie wliczone do sum. Korekta w panelu "Oferty ze zmianą ceny".</div>`;
 
     html += renderCountrySummary();
 
@@ -1425,8 +1257,11 @@ function renderReport(rows, adjustmentRows, monthKey, isFiltered) {
 function renderCountrySummary() {
     if (lastReportRows.length === 0) return '';
 
+    // Wyklucza wiersze DO_SPRAWDZENIA — ich delta to niepewne wyliczenie automatu, nie coś, co
+    // powinno trafić do sumy "ile dopisać/zrabatować" bez ręcznej weryfikacji (patrz panel "Oferty
+    // ze zmianą ceny", tam trafiają Twoje ręcznie zweryfikowane korekty osobno).
     const byCountry = {};
-    lastReportRows.forEach(r => {
+    lastReportRows.filter(r => r.flag !== 'DO_SPRAWDZENIA').forEach(r => {
         byCountry[r.country] = (byCountry[r.country] || 0) + r.delta;
     });
 
@@ -1436,7 +1271,7 @@ function renderCountrySummary() {
     countries.sort((a, b) => Math.abs(byCountry[b]) - Math.abs(byCountry[a]));
 
     let html = `<h3>📮 Podsumowanie do doliczenia / zrabatowania — per kraj (${lastReportMonth})</h3>
-    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Zawsze liczone z pełnego raportu (niezależnie od filtra Offer ID powyżej). Suma rozbieżności ze wszystkich ofert danego kraju za cały miesiąc, z uwzględnieniem zmian cen w jego trakcie — dokładnie tyle dopisujesz (dodatnia) lub rabatujesz (ujemna) na kolejnej fakturze.</div>
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem;">Bez ofert DO_SPRAWDZENIA (te rozliczasz osobno w panelu "Oferty ze zmianą ceny"). Dodatnia = dopłata, ujemna = rabat na kolejnej fakturze.</div>
     <table class="data-table"><thead><tr><th>Kraj</th><th style="text-align:right">Do dopłaty / rabatu</th></tr></thead><tbody>`;
 
     let grandTotal = 0;
@@ -1460,18 +1295,23 @@ function renderCountrySummary() {
 function openDrilldown(idx) {
     const r = currentRenderedRows[idx];
     if (!r) return;
+
+    const isManualReview = r.flag === 'DO_SPRAWDZENIA';
+
     let html = `<h2 style="color:var(--accent); margin-top:0;">Offer #${r.offerId} — ${r.country.toUpperCase()}</h2>
     <div class="stat-row">
-        <div class="stat-box"><div class="stat-label">Powinno Być</div><div class="stat-value">${r.shouldBeValue.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Powinno Być${isManualReview ? ' (automat, niepewne)' : ''}</div><div class="stat-value"${isManualReview ? ' style="color:var(--text-muted);"' : ''}>${r.shouldBeValue.toFixed(2)} €</div></div>
         <div class="stat-box"><div class="stat-label">Zafakturowano</div><div class="stat-value">${r.actualValue.toFixed(2)} €</div></div>
-        <div class="stat-box"><div class="stat-label">Delta</div><div class="stat-value" style="color:${Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171')}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €</div></div>
+        <div class="stat-box"><div class="stat-label">Delta${isManualReview ? ' (automat, niepewne)' : ''}</div><div class="stat-value" style="color:${isManualReview ? 'var(--text-muted)' : (Math.abs(r.delta) < 0.5 ? '#34d399' : (r.delta > 0 ? '#fbbf24' : '#f87171'))}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)} €</div></div>
     </div>`;
 
-    if (r.flag !== 'ZGODNE') {
+    if (isManualReview) {
+        html += `<div class="confidence-banner">⚠️ Zmiana ceny w trakcie miesiąca — wyliczenie automatu, tylko punkt odniesienia. Wpisz korektę w panelu "⚡ Oferty ze zmianą ceny" w Sekcji C.</div>`;
+    } else if (r.flag !== 'ZGODNE') {
         const action = r.delta > 0
-            ? `Sugerowana dopłata: <b>${r.delta.toFixed(2)} €</b> (dodatkowa linia na fakturze lub osobna nota).`
-            : `Sugerowany rabat/korekta: <b>${Math.abs(r.delta).toFixed(2)} €</b> (nadfakturowano ${Math.abs(r.delta).toFixed(2)} €).`;
-        html += `<div class="confidence-banner" style="border-color: var(--accent); color: var(--accent-hover);">💡 ${action} Narzędzie tylko sugeruje — nie tworzy automatycznie wpisu w Hub-ie.</div>`;
+            ? `Sugerowana dopłata: <b>${r.delta.toFixed(2)} €</b>.`
+            : `Sugerowany rabat: <b>${Math.abs(r.delta).toFixed(2)} €</b>.`;
+        html += `<div class="confidence-banner" style="border-color: var(--accent); color: var(--accent-hover);">💡 ${action}</div>`;
     }
 
     html += `<h3>Leady uwzględnione w "Powinno Być" (${r.leadsDetail.length})</h3>`;
@@ -1506,6 +1346,8 @@ function exportReportCsv() {
     let csv = 'Offer_ID;Country;ShouldBe;Actual;Delta;Leads_ShouldBe;Leads_Actual;Flag;Confidence\n';
     lastReportRows.forEach(r => {
         const conf = [...new Set([...r.shouldBeConfidence, ...r.actualConfidence])].join('|');
+        // Flaga DO_SPRAWDZENIA w kolumnie Flag już oznacza "automat, niepewne" — ShouldBe/Delta
+        // eksportowane normalnie, żeby dało się je porównać w Excelu z ręcznym przeliczeniem.
         csv += `${r.offerId};${r.country.toUpperCase()};${r.shouldBeValue.toFixed(2)};${r.actualValue.toFixed(2)};${r.delta.toFixed(2)};${r.shouldBeLeads};${r.actualLeads};${r.flag};${conf}\n`;
     });
     downloadFile(`rekoncyliacja_${lastReportMonth}.csv`, csv, 'text/csv;charset=utf-8');
@@ -1519,7 +1361,6 @@ window.onload = () => {
     initMonthSelector();
     renderPriceHistoryCoverage();
     renderLeadsSummary();
-    renderSanityCheck();
     renderPriceChangesThisMonth();
 };
 </script>

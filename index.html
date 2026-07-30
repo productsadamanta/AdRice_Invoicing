@@ -691,6 +691,14 @@
                 </div>
             </div>
 
+            <!-- Panel korekt zgłoszonych z reconciliation.html — wymagają ręcznego zatwierdzenia -->
+            <div class="balance-panel">
+                <h3>🧾 Oczekujące korekty z Rekoncyliacji</h3>
+                <div id="reconciliationPending">
+                    <div class="balance-empty">Brak oczekujących korekt z rekoncyliacji.</div>
+                </div>
+            </div>
+
             <h2>Pliki Wejściowe</h2>
 
             <div class="file-input-group">
@@ -941,6 +949,229 @@
         // Globalny stan oczekujących rabatów/sald (Carry-over)
         let pendingAdjustments = JSON.parse(localStorage.getItem('adrice_pending_adjustments')) || [];
 
+        // Staging ręcznych korekt zgłoszonych z reconciliation.html (patrz LS_RECONCILIATION_ADJUSTMENTS
+        // tamże) — OSOBNY klucz od pendingAdjustments. reconciliation.html tylko tu zapisuje
+        // (status 'pending_import'); dopiero po ręcznym zatwierdzeniu tutaj wpis trafia do
+        // prawdziwego salda (pendingAdjustments) z jawnym `source: 'reconciliation'`.
+        const LS_RECONCILIATION_ADJUSTMENTS = 'adrice_reconciliation_adjustments';
+        function loadReconciliationStaging() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(LS_RECONCILIATION_ADJUSTMENTS));
+                if (Array.isArray(raw)) return raw;
+            } catch (e) {}
+            return [];
+        }
+        function saveReconciliationStaging(list) {
+            localStorage.setItem(LS_RECONCILIATION_ADJUSTMENTS, JSON.stringify(list));
+        }
+        function notifyUser(text, duration) {
+            let notif = document.getElementById('notification');
+            notif.innerText = text;
+            notif.classList.add('show');
+            setTimeout(() => notif.classList.remove('show'), duration || 4000);
+        }
+        // Pcha JEDEN wpis stagingu do prawdziwego salda (pendingAdjustments) — nie zapisuje sama
+        // (wywołujący robi to raz, zbiorczo, po pętli), nie pokazuje potwierdzeń/notyfikacji.
+        function pushReconciliationEntryToLedger(entry) {
+            pendingAdjustments.push({
+                id: 'adj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+                account: entry.country,
+                amount: entry.amount,
+                month: entry.month,
+                timestamp: new Date().toLocaleString('pl-PL'),
+                status: 'pending',
+                items: [{ id: entry.offerId, delta: 0, price: 0, title: 'Rekoncyliacja #' + entry.offerId + (entry.note ? ' — ' + entry.note : '') }],
+                source: 'reconciliation',
+                reconciliationStagingId: entry.id // link do stagingu, żeby dało się to później znaleźć i usunąć/cofnąć
+            });
+            entry.status = 'imported';
+
+            // Natychmiastowy log we WŁAŚCIWYM miesiącu (entry.month) — dokładnie ten sam wzorzec co
+            // stary mechanizm "przenieś do salda" (PRZENIESIENIE_DO_SALDA, patrz window.moveAdjustment
+            // / funkcja obok pendingAdjustments.push kilkaset linii niżej): bez tego wpisu wartość
+            // korekty jest "niewidzialna" w sumach miesięcznych (history.html "Wartość całkowita",
+            // reconciliation.html computeActualForMonth) aż do faktycznej konsumpcji na przyszłej
+            // fakturze — a tam liczy się TYLKO do tamtej faktury (log.adjustments), nie do miesiąca,
+            // za który realnie jest ta korekta. delta:1/price:amount (zamiast realnych par
+            // delta/cena — nie mamy ich przy ręcznej korekcie) tak, żeby item.delta*item.price dało
+            // dokładnie kwotę korekty w sumach opartych o items.
+            if (!invoicingDB[entry.month]) invoicingDB[entry.month] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
+            if (!invoicingDB[entry.month].logs) invoicingDB[entry.month].logs = [];
+            invoicingDB[entry.month].logs.push({
+                timestamp: new Date().toLocaleString('pl-PL'),
+                invoiceNumber: 'REKONCYLIACJA_DO_SALDA',
+                type: entry.country.toUpperCase(),
+                mode: 'REKONCYLIACJA (KOREKTA)',
+                reconciliationStagingId: entry.id, // ten sam link, żeby removeReconciliationEntry() trafił we WŁAŚCIWY log
+                items: [{ id: entry.offerId, title: 'Rekoncyliacja #' + entry.offerId + (entry.note ? ' — ' + entry.note : ''), delta: 1, price: entry.amount }]
+            });
+            saveInvoicingDB();
+        }
+
+        // Cofnięcie ZATWIERDZONEJ (ale jeszcze niewykorzystanej na prawdziwej fakturze) korekty
+        // z rekoncyliacji. Zwykły przycisk "Cofnij" w history.html nie działa dla tych logów (wymaga
+        // pola beforeState, którego placeholdery salda — ani stare PRZENIESIENIE_DO_SALDA, ani nowe
+        // REKONCYLIACJA_DO_SALDA — nigdy nie miały), więc to osobna, właściwa ścieżka usuwania.
+        window.removeReconciliationEntry = function(stagingId) {
+            const staging = loadReconciliationStaging();
+            const entry = staging.find(a => a.id === stagingId);
+            if (!entry) return;
+
+            const adjIdx = pendingAdjustments.findIndex(pa => pa.reconciliationStagingId === stagingId);
+            if (adjIdx >= 0 && pendingAdjustments[adjIdx].status === 'used') {
+                alert('Ta korekta została już skonsumowana na prawdziwej fakturze (' + (pendingAdjustments[adjIdx].usedByInvoice || '?') + ') — nie da się jej cofnąć stąd. Trzeba by ręcznie poprawić tamtą fakturę.');
+                return;
+            }
+            if (!confirm(`Usunąć korektę ${entry.amount.toFixed(2)} € dla oferty #${entry.offerId} (${entry.country.toUpperCase()}, za ${entry.month})?\n\nZniknie z oczekującego salda i z sumy miesiąca ${entry.month}.`)) return;
+
+            if (adjIdx >= 0) pendingAdjustments.splice(adjIdx, 1);
+            saveAdjustments();
+
+            if (invoicingDB[entry.month] && invoicingDB[entry.month].logs) {
+                invoicingDB[entry.month].logs = invoicingDB[entry.month].logs.filter(l => l.reconciliationStagingId !== stagingId);
+                saveInvoicingDB();
+            }
+
+            entry.status = 'removed';
+            saveReconciliationStaging(staging);
+            renderReconciliationPending();
+            notifyUser(`🗑️ Usunięto korektę rekoncyliacji dla #${entry.offerId} (${entry.amount.toFixed(2)} €).`, 4000);
+        };
+
+        // Panel pokazuje SUMĘ per kraj (ile trzeba doliczyć/zrabatować łącznie) — rozbicie na
+        // konkretne oferty (na potrzeby audytu w archiwum backupu/git) trafia i tak do `items`/
+        // tytułu każdego pojedynczego wpisu w pendingAdjustments (patrz pushReconciliationEntryToLedger),
+        // niezależnie od tego jak zagregowany jest widok tutaj.
+function renderApprovedReconciliationSection(staging) {
+            // Zatwierdzone (status 'imported'), ale jeszcze niewykorzystane na prawdziwej fakturze —
+            // można je jeszcze bezpiecznie usunąć (removeReconciliationEntry), w przeciwieństwie do
+            // tych już skonsumowanych (status: 'used' w pendingAdjustments), które trzeba by
+            // poprawiać ręcznie na tamtej fakturze.
+            const approved = staging.filter(a => a.status === 'imported');
+            if (approved.length === 0) return '';
+
+            let html = `<h4 style="margin:1rem 0 0.4rem; font-size:0.8rem; color:var(--text-muted);">Zatwierdzone, jeszcze niepodliczone na fakturze</h4>
+            <table class="balance-table"><tbody>`;
+            approved.forEach(a => {
+                const linked = pendingAdjustments.find(pa => pa.reconciliationStagingId === a.id);
+                const isUsed = linked && linked.status === 'used';
+                const color = a.amount < 0 ? 'var(--success)' : '#fbbf24';
+                html += `<tr>
+                    <td class="acc" style="font-size:0.75rem;">
+                        #${a.offerId} / ${a.country.toUpperCase()}<br>
+                        <span style="color: var(--text-muted); font-weight:400;">za ${a.month}${isUsed ? ' — rozliczone na ' + (linked.usedByInvoice || 'fakturze') : ''}</span>
+                    </td>
+                    <td class="amt" style="color:${color}">${a.amount > 0 ? '+' : ''}${a.amount.toFixed(2)} €</td>
+                    <td>${isUsed
+                        ? '<span style="font-size:0.65rem; color:var(--text-muted);">już na fakturze</span>'
+                        : `<button class="btn-action" style="color: #f87171; border-color: rgba(248,113,113,0.3);" onclick="removeReconciliationEntry('${a.id}')" title="Usuń — zdejmie z salda i z sumy miesiąca">🗑️ Usuń</button>`}
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function renderReconciliationPending() {
+            const container = document.getElementById('reconciliationPending');
+            if (!container) return;
+            const staging = loadReconciliationStaging();
+            const pending = staging.filter(a => a.status === 'pending_import');
+
+            if (pending.length === 0) {
+                container.innerHTML = '<div class="balance-empty">Brak oczekujących korekt z rekoncyliacji.</div>' + renderApprovedReconciliationSection(staging);
+                return;
+            }
+
+            const byCountry = {};
+            pending.forEach(a => {
+                if (!byCountry[a.country]) byCountry[a.country] = [];
+                byCountry[a.country].push(a);
+            });
+
+            let html = '<table class="balance-table"><tbody>';
+            Object.keys(byCountry).sort().forEach(country => {
+                const entries = byCountry[country];
+                const total = entries.reduce((s, a) => s + a.amount, 0);
+                const color = total < 0 ? 'var(--success)' : '#fbbf24';
+                const detailsId = 'reconDetails-' + country;
+                html += `<tr>
+                    <td class="acc" style="font-size:0.75rem;">
+                        ${country.toUpperCase()}<br>
+                        <span style="color: var(--text-muted); font-weight:400; cursor:pointer; text-decoration:underline dotted;" onclick="document.getElementById('${detailsId}').style.display = document.getElementById('${detailsId}').style.display === 'none' ? 'block' : 'none'">${entries.length} ${entries.length === 1 ? 'oferta' : 'ofert(y)'} — szczegóły</span>
+                    </td>
+                    <td class="amt" style="color:${color}">${total > 0 ? '+' : ''}${total.toFixed(2)} €</td>
+                    <td>
+                        <button class="btn-action" style="color: var(--success); border-color: rgba(16,185,129,0.3);" onclick="approveReconciliationCountry('${country}')" title="Zatwierdź wszystkie dla tego kraju naraz">✅ Wszystkie</button>
+                        <button class="btn-action" style="color: #f87171; border-color: rgba(248,113,113,0.3);" onclick="rejectReconciliationCountry('${country}')" title="Odrzuć wszystkie zgłoszenia dla tego kraju">🗑️</button>
+                    </td>
+                </tr>
+                <tr id="${detailsId}" style="display:none;">
+                    <td colspan="3" style="padding:0.4rem 0.5rem 0.6rem;">
+                        <table style="width:100%; font-size:0.72rem; border-collapse:collapse;">`;
+                entries.forEach(a => {
+                    html += `<tr>
+                        <td style="padding:0.2rem 0.4rem; color:var(--text-muted);">#${a.offerId} · za ${a.month}${a.note ? ' — ' + a.note.replace(/</g, '&lt;') : ''}</td>
+                        <td style="padding:0.2rem 0.4rem; text-align:right; white-space:nowrap; color:${a.amount < 0 ? 'var(--success)' : '#fbbf24'};">${a.amount > 0 ? '+' : ''}${a.amount.toFixed(2)} €</td>
+                        <td style="padding:0.2rem 0.4rem; text-align:right; white-space:nowrap;">
+                            <button class="btn-action" style="padding:0.1rem 0.4rem; font-size:0.65rem;" onclick="approveReconciliationAdjustment('${a.id}')">✅</button>
+                            <button class="btn-action" style="padding:0.1rem 0.4rem; font-size:0.65rem;" onclick="rejectReconciliationAdjustment('${a.id}')">🗑️</button>
+                        </td>
+                    </tr>`;
+                });
+                html += `</table>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            html += renderApprovedReconciliationSection(staging);
+            container.innerHTML = html;
+        }
+
+        window.approveReconciliationCountry = function(country) {
+            const staging = loadReconciliationStaging();
+            const entries = staging.filter(a => a.country === country && a.status === 'pending_import');
+            if (entries.length === 0) return;
+            const total = entries.reduce((s, a) => s + a.amount, 0);
+            if (!confirm(`Zatwierdzić ${entries.length} korekt(ę/y) z rekoncyliacji dla ${country.toUpperCase()}, łącznie ${total.toFixed(2)} €?\n\nDoliczy się do KOLEJNEJ wygenerowanej faktury tego konta.`)) return;
+            entries.forEach(pushReconciliationEntryToLedger);
+            saveAdjustments();
+            saveReconciliationStaging(staging);
+            renderReconciliationPending();
+            notifyUser(`✅ Zatwierdzono ${entries.length} korekt(ę/y) z rekoncyliacji dla ${country.toUpperCase()} (${total.toFixed(2)} €) — trafi na kolejną fakturę.`, 5000);
+        };
+        window.rejectReconciliationCountry = function(country) {
+            const staging = loadReconciliationStaging();
+            const entries = staging.filter(a => a.country === country && a.status === 'pending_import');
+            if (entries.length === 0) return;
+            if (!confirm(`Odrzucić WSZYSTKIE (${entries.length}) zgłoszone korekty z rekoncyliacji dla ${country.toUpperCase()}? Żadna nie trafi do salda.`)) return;
+            entries.forEach(a => { a.status = 'rejected'; });
+            saveReconciliationStaging(staging);
+            renderReconciliationPending();
+            notifyUser(`🗑️ Odrzucono ${entries.length} zgłoszenie(a) korekt z rekoncyliacji dla ${country.toUpperCase()}.`, 3500);
+        };
+        window.approveReconciliationAdjustment = function(id) {
+            const staging = loadReconciliationStaging();
+            const entry = staging.find(a => a.id === id);
+            if (!entry) return;
+            if (!confirm(`Zatwierdzić korektę ${entry.amount.toFixed(2)} € dla oferty #${entry.offerId} (${entry.country.toUpperCase()}, za ${entry.month})?\n\nTrafi do oczekującego salda i doliczy się do KOLEJNEJ wygenerowanej faktury tego konta.`)) return;
+            pushReconciliationEntryToLedger(entry);
+            saveAdjustments();
+            saveReconciliationStaging(staging);
+            renderReconciliationPending();
+            notifyUser(`✅ Korekta z rekoncyliacji dla #${entry.offerId} zatwierdzona — trafi na kolejną fakturę ${entry.country.toUpperCase()}.`, 5000);
+        };
+        window.rejectReconciliationAdjustment = function(id) {
+            const staging = loadReconciliationStaging();
+            const entry = staging.find(a => a.id === id);
+            if (!entry) return;
+            if (!confirm(`Odrzucić zgłoszoną korektę ${entry.amount.toFixed(2)} € dla oferty #${entry.offerId}? Nie trafi do salda.`)) return;
+            entry.status = 'rejected';
+            saveReconciliationStaging(staging);
+            renderReconciliationPending();
+            notifyUser('🗑️ Odrzucono zgłoszenie korekty z rekoncyliacji.', 3500);
+        };
+
         window.migrateFindAlcanceToPerCountry = function() {
             if (Object.keys(mappings.offerIdToData).length === 0) {
                 alert("Mappingi nie są załadowane.\n\nWgraj najpierw pliki AdRice (aktywne + nieaktywne) oraz Amsped Lists (Find + Alcance), wygeneruj faktury, a dopiero potem uruchom migrację.");
@@ -1037,18 +1268,22 @@
         function renderSidebarBalances() {
             const container = document.getElementById('sidebarBalances');
             const active = pendingAdjustments.filter(a => a.status === 'pending');
-            
+
             if (active.length === 0) {
                 container.innerHTML = '<div class="balance-empty">Brak oczekujących rabatów.</div>';
                 return;
             }
 
             let html = '<table class="balance-table"><tbody>';
-            // Agregacja po koncie
+            // Agregacja po koncie — osobno licząc część pochodzącą z rekoncyliacji (source:
+            // 'reconciliation'), żeby było od razu widać ile z sumy to "moje ręczne korekty",
+            // a ile stare, cotygodniowe korekty salda — bez przeskakiwania do drugiego panelu.
             const accounts = { pl:0, de:0, lt:0, cz:0, sk:0, lv:0, hu:0, pt:0, es:0 };
+            const reconciliationPart = { pl:0, de:0, lt:0, cz:0, sk:0, lv:0, hu:0, pt:0, es:0 };
             active.forEach(a => {
                 if (Object.prototype.hasOwnProperty.call(accounts, a.account)) {
                     accounts[a.account] += a.amount;
+                    if (a.source === 'reconciliation') reconciliationPart[a.account] += a.amount;
                 }
             });
 
@@ -1056,7 +1291,11 @@
                 if (accounts[acc] !== 0) {
                     const isPositive = accounts[acc] > 0;
                     const color = isPositive ? '#fbbf24' : 'var(--success)';
-                    html += `<tr><td class="acc">${acc.toUpperCase()}</td><td class="amt" style="color:${color}">${accounts[acc].toFixed(2)} €</td></tr>`;
+                    const reconPart = reconciliationPart[acc];
+                    const breakdown = (reconPart !== 0 && Math.abs(reconPart - accounts[acc]) > 0.005)
+                        ? `<br><span style="font-size:0.65rem; color:var(--text-muted); font-weight:400;">w tym ${reconPart > 0 ? '+' : ''}${reconPart.toFixed(2)} € z rekoncyliacji</span>`
+                        : '';
+                    html += `<tr><td class="acc">${acc.toUpperCase()}${breakdown}</td><td class="amt" style="color:${color}">${accounts[acc].toFixed(2)} €</td></tr>`;
                 }
             });
             html += '</tbody></table>';
@@ -1131,6 +1370,7 @@
             }
 
             renderSidebarBalances(); // Odśwież widok sald na starcie
+            renderReconciliationPending(); // Odśwież widok oczekujących korekt z rekoncyliacji
         }
 
         // Listener zmiany miesiąca (Będzie przypisany na końcu skryptu)
@@ -1946,17 +2186,24 @@
                     rowNum++;
                 });
 
-                appliedAdjustments.forEach(adj => {
-                    const isRabat = adj.amount < 0;
-                    // value has already been pre-calculated in finalCorrectionValue above
+                // Podgląd łączy oczekujące korekty w JEDNĄ pozycję na plus i JEDNĄ na minus —
+                // dokładnie tak jak trafią na realną fakturę (patrz copyInvoiceToClipboard) — żeby
+                // podgląd nie mylił mnogością wierszy, których i tak nie będzie na wysłanym
+                // dokumencie. Rozbicie per-źródło/oferta zostaje w danych i w Szczegółach faktury.
+                [{ list: appliedAdjustments.filter(a => a.amount > 0), label: 'Dopłata' },
+                 { list: appliedAdjustments.filter(a => a.amount < 0), label: 'Rabat' }].forEach(group => {
+                    if (group.list.length === 0) return;
+                    const isRabat = group.label === 'Rabat';
+                    const total = group.list.reduce((s, a) => s + a.amount, 0);
+                    const months = [...new Set(group.list.map(a => a.month))].join('/');
                     htmlString += `
                     <tr style="background: ${isRabat ? 'rgba(16,185,129,0.1)' : 'rgba(251,191,36,0.1)'};">
                         <td style="color:var(--text-muted); font-size:0.8rem;">${rowNum++}</td>
-                        <td style="color:${isRabat ? 'var(--success)' : '#fbbf24'}; font-weight:600;">Korekta / ${isRabat ? 'Rabat' : 'Dopłata'} za: ${adj.month}</td>
+                        <td style="color:${isRabat ? 'var(--success)' : '#fbbf24'}; font-weight:600;">Korekta / ${group.label} za: ${months}${group.list.length > 1 ? ` <span style="color:var(--text-muted); font-weight:400;">(${group.list.length} poz. połączone)</span>` : ''}</td>
                         <td>-</td><td>-</td>
                         <td style="font-weight:700;">${isRabat ? '-1' : '+1'} Szt</td>
-                        <td style="text-align:right;">${Math.abs(adj.amount).toFixed(2)}</td>
-                        <td style="text-align:right; font-weight:700;">${adj.amount.toFixed(2)} €</td>
+                        <td style="text-align:right;">${Math.abs(total).toFixed(2)}</td>
+                        <td style="text-align:right; font-weight:700;">${total.toFixed(2)} €</td>
                         <td></td>
                     </tr>
                     `;
@@ -2452,25 +2699,28 @@
             const appliedAdjustments = invoicingMode === 'cumulative'
                 ? pendingAdjustments.filter(a => a.account === accountKey && a.status === 'pending' && a.month < selectedMonth)
                 : [];
-            appliedAdjustments.forEach(adj => {
-                if (adj.amount > 0) {
-                    // Oczekujące dopłaty zostawiamy jako osobną pozycję na plus
-                    let title = `Korekta / Dopłata za: ${adj.month}`;
-                    let qty = 1;
-                    let rateStr = adj.amount.toFixed(2);
-                    let amountStr = adj.amount.toFixed(2);
-                    let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
-                    tsvText += rowTsv + "\n";
-                } else if (adj.amount < 0) {
-                    // Oczekujące rabaty jako osobna pozycja na minus
-                    let title = `Korekta / Rabat za: ${adj.month}`;
-                    let qty = 1;
-                    let rateStr = adj.amount.toFixed(2);
-                    let amountStr = adj.amount.toFixed(2);
-                    let rowTsv = `${title}\t\t${qty}\t${rateStr}\t${amountStr}`;
-                    tsvText += rowTsv + "\n";
-                }
-            });
+            // Na REALNEJ fakturze (ten tekst trafia bezpośrednio do klienta) wszystkie oczekujące
+            // korekty — niezależnie od tego czy to stara cotygodniowa korekta ilościowa czy nowa
+            // rekoncyliacja wartości — łączą się w JEDNĄ pozycję na plus i JEDNĄ na minus, żeby nie
+            // rodzić pytań u klienta. Rozbicie per-źródło/per-oferta zostaje w pełni zachowane w
+            // danych (logEntry.adjustments w confirmInvoice — każdy wpis osobno) i widoczne w
+            // Szczegółach faktury w history.html, do własnego audytu.
+            const positiveAdj = appliedAdjustments.filter(a => a.amount > 0);
+            const negativeAdj = appliedAdjustments.filter(a => a.amount < 0);
+            if (positiveAdj.length > 0) {
+                const total = positiveAdj.reduce((s, a) => s + a.amount, 0);
+                const months = [...new Set(positiveAdj.map(a => a.month))].join('/');
+                let title = `Korekta / Dopłata za: ${months}`;
+                let rowTsv = `${title}\t\t1\t${total.toFixed(2)}\t${total.toFixed(2)}`;
+                tsvText += rowTsv + "\n";
+            }
+            if (negativeAdj.length > 0) {
+                const total = negativeAdj.reduce((s, a) => s + a.amount, 0);
+                const months = [...new Set(negativeAdj.map(a => a.month))].join('/');
+                let title = `Korekta / Rabat za: ${months}`;
+                let rowTsv = `${title}\t\t1\t${total.toFixed(2)}\t${total.toFixed(2)}`;
+                tsvText += rowTsv + "\n";
+            }
             if (!tsvText) {
                 alert("Brak pozycji do skopiowania (wszystkie wartości wynoszą 0 lub są pominiętymi spadkami).");
                 return;
