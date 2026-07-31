@@ -964,6 +964,22 @@
         function saveReconciliationStaging(list) {
             localStorage.setItem(LS_RECONCILIATION_ADJUSTMENTS, JSON.stringify(list));
         }
+        // Samonaprawiająca synchronizacja: dogania przypadki, gdzie pendingAdjustments już oznaczył
+        // korektę jako 'used' (skonsumowaną na fakturze), ale powiązany wpis w stagingu rekoncyliacji
+        // z jakiegoś powodu tego nie odzwierciedlił (np. faktura zatwierdzona przed dodaniem
+        // propagacji w confirmInvoice) — bez tego taki wpis wisi w "Oczekujące korekty z
+        // Rekoncyliacji" na stałe, a przycisk Usuń go blokuje (bo pendingAdjustments już go uważa
+        // za skonsumowanego). Uruchamiana przy każdym starcie strony, więc naprawia się sama.
+        function syncReconciliationStagingWithLedger() {
+            const staging = loadReconciliationStaging();
+            let changed = false;
+            staging.forEach(entry => {
+                if (entry.status !== 'imported') return;
+                const linked = pendingAdjustments.find(pa => pa.reconciliationStagingId === entry.id);
+                if (linked && linked.status === 'used') { entry.status = 'used'; changed = true; }
+            });
+            if (changed) saveReconciliationStaging(staging);
+        }
         function notifyUser(text, duration) {
             let notif = document.getElementById('notification');
             notif.innerText = text;
@@ -1236,7 +1252,25 @@ function renderApprovedReconciliationSection(staging) {
             alert(`Migracja zakończona!\n\nZmigrowano ${totalMigrated} pozycji:\n${report.join('\n')}\n\nDane find/alcance zostały zachowane jako backup.`);
         };
 
+        // Zapobiega cichemu nadpisaniu localStorage starszą kopią pendingAdjustments z pamięci tej
+        // karty — jeśli w międzyczasie inna karta/sesja Hub-a dopisała tam nowe wpisy (np.
+        // zatwierdzenie korekty z rekoncyliacji w innej karcie), scala je z bieżącym stanem zamiast
+        // je bezpowrotnie gubić przy kolejnym zapisie z tej karty. Przy tym samym ID wygrywa wersja
+        // z pamięci tej karty (świadomie ją właśnie zmienia) — to nie rozwiązuje konfliktów edycji
+        // tego samego wpisu w dwóch kartach naraz, tylko chroni przed utratą wpisów DODANYCH gdzie
+        // indziej w międzyczasie.
+        function mergeAdjustmentsWithStorage(current) {
+            let onDisk;
+            try {
+                onDisk = JSON.parse(localStorage.getItem('adrice_pending_adjustments'));
+                if (!Array.isArray(onDisk)) return current;
+            } catch (e) { return current; }
+            const knownIds = new Set(current.map(a => a.id));
+            const missing = onDisk.filter(a => !knownIds.has(a.id));
+            return missing.length > 0 ? [...current, ...missing] : current;
+        }
         function saveAdjustments() {
+            pendingAdjustments = mergeAdjustmentsWithStorage(pendingAdjustments);
             localStorage.setItem('adrice_pending_adjustments', JSON.stringify(pendingAdjustments));
             renderSidebarBalances();
         }
@@ -1369,6 +1403,7 @@ function renderApprovedReconciliationSection(staging) {
                 }
             }
 
+            syncReconciliationStagingWithLedger();
             renderSidebarBalances(); // Odśwież widok sald na starcie
             renderReconciliationPending(); // Odśwież widok oczekujących korekt z rekoncyliacji
         }
@@ -2613,12 +2648,26 @@ function renderApprovedReconciliationSection(staging) {
             };
 
             // Zastosowanie rabatów
+            const reconciliationStagingIdsUsed = [];
             adjustmentsToApply.forEach(a => {
                 a.status = 'used';
                 a.usedByInvoice = invoiceNum;
+                if (a.reconciliationStagingId) reconciliationStagingIdsUsed.push(a.reconciliationStagingId);
                 logEntry.adjustments.push({...a});
             });
             if (adjustmentsToApply.length > 0) saveAdjustments();
+
+            // Korekty z rekoncyliacji skonsumowane na tej fakturze znikają z panelu "Oczekujące
+            // korekty z Rekoncyliacji" w Hub-ie (przechodzą 'imported' -> 'used', poza filtrem
+            // renderApprovedReconciliationSection) — bez tego wisiały tam nieskończenie, mimo że
+            // saldo już dawno trafiło na fakturę.
+            if (reconciliationStagingIdsUsed.length > 0) {
+                const staging = loadReconciliationStaging();
+                staging.forEach(entry => {
+                    if (reconciliationStagingIdsUsed.includes(entry.id)) entry.status = 'used';
+                });
+                saveReconciliationStaging(staging);
+            }
 
             invoicingDB[selectedMonth].logs.push(logEntry);
 
@@ -2632,6 +2681,9 @@ function renderApprovedReconciliationSection(staging) {
             invoicingDB[selectedMonth].redoLogs = invoicingDB[selectedMonth].redoLogs.filter(l => l.type !== type.toUpperCase());
 
             saveInvoicingDB();
+
+            renderSidebarBalances();
+            renderReconciliationPending();
 
             let notif = document.getElementById('notification');
             notif.innerText = "Zatwierdzono i zapisano w Historii (" + type.toUpperCase() + ")";
