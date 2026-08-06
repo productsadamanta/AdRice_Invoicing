@@ -1667,6 +1667,10 @@ function renderApprovedReconciliationSection(staging) {
             btn.disabled = true;
             btn.innerText = "Przetwarzanie...";
 
+            // Miesiąc zamrożony na starcie generowania (patrz lastGeneratedMonth) — cała tabela jest
+            // liczona względem liczników TEGO miesiąca, także gdy select zmieni się w trakcie parsowania.
+            lastGeneratedMonth = document.getElementById('activeMonth').value;
+
             try {
                 // 1. Load Data mapping
                 const fileAdRiceActive = document.getElementById('fileAdRiceActive').files[0];
@@ -1747,7 +1751,7 @@ function renderApprovedReconciliationSection(staging) {
                 const processAccount = async (file, accountName) => {
                     if (!file) return [];
                     let data = await parseCSVFile(file, { delimiter: ";" });
-                    let currentMonth = document.getElementById('activeMonth').value;
+                    let currentMonth = lastGeneratedMonth;
                     if (!invoicingDB[currentMonth]) invoicingDB[currentMonth] = { pl: {}, hu: {}, de: {}, lt: {}, cz: {}, sk: {}, lv: {}, pt: {}, es: {}, logs: [] };
 
                     // KROK 1: Agregacja po (offerId + invoiceType)
@@ -2402,6 +2406,7 @@ function renderApprovedReconciliationSection(staging) {
         let currentMissingAccountKey = "";
 
         window.discoverMissingFromDB = function(accountKey) {
+            if (!assertGeneratedMonth('Dodanie brakujących ofert jako korekt')) return;
             const currentMonth = document.getElementById('activeMonth').value;
             const db = invoicingDB[currentMonth];
             if (!db) { alert("Brak danych w bazie dla tego miesiąca."); return; }
@@ -2526,8 +2531,31 @@ function renderApprovedReconciliationSection(staging) {
         // Globalny cache wyników do zatwierdzania
         let lastGeneratedResults = { pl: [], hu: [], de: [], lt: [], cz: [], sk: [], lv: [], pt: [], es: [] };
 
+        // Miesiąc, dla którego policzono lastGeneratedResults (ustawiany w handlerze generateBtn).
+        // Tabela liczy `currentCount` względem liczników TEGO miesiąca, więc zatwierdzenie jej po
+        // przełączeniu selecta zapisuje do innego miesiąca wartość "delta + cały stan miesiąca
+        // generowania". Tak 29.07.2026 lipcowe liczniki DE/LT/CZ/SK/LV dostały cały czerwcowy stan
+        // (+20 626 leadów) — wyszło dopiero miesiąc później, na pierwszej fakturze AUTOMAT.
+        let lastGeneratedMonth = null;
+
+        // Wpuszcza dalej tylko wtedy, gdy wybrany miesiąc to nadal ten, dla którego policzono tabelę.
+        function assertGeneratedMonth(action) {
+            const selected = document.getElementById('activeMonth').value;
+            if (!lastGeneratedMonth || lastGeneratedMonth === selected) return true;
+            alert(
+                `BLOKADA — niezgodność miesiąca.\n\n` +
+                `Tabela została wygenerowana dla: ${lastGeneratedMonth}\n` +
+                `Wybrany miesiąc to teraz:       ${selected}\n\n` +
+                `${action} zapisałoby do ${selected} liczniki policzone względem ${lastGeneratedMonth}, ` +
+                `czyli deltę powiększoną o cały stan tamtego miesiąca.\n\n` +
+                `Ustaw miesiąc z powrotem na ${lastGeneratedMonth} albo wygeneruj faktury na nowo dla ${selected}.`
+            );
+            return false;
+        }
+
         // NOWOŚĆ: Funkcja przenosząca sumę korygującą (dodatnią lub ujemną) do salda
         window.transferToBalance = function(account, amount, month) {
+            if (!assertGeneratedMonth('Przeniesienie do salda')) return;
             const isRabat = amount < 0;
             const actionType = isRabat ? "RABAT (obniżka)" : "DOPŁATĘ (zwiększenie)";
             
@@ -2574,6 +2602,7 @@ function renderApprovedReconciliationSection(staging) {
 
         // Funkcja zatwierdzająca wyniki i zapisująca je do bazy wybranego miesiąca
         window.confirmInvoice = function (type) {
+            if (!assertGeneratedMonth('Zatwierdzenie faktury')) return;
             let selectedMonth = document.getElementById('activeMonth').value;
             let items = lastGeneratedResults[type];
 
@@ -2875,7 +2904,17 @@ function renderApprovedReconciliationSection(staging) {
         });
         
         document.getElementById('activeMonth').addEventListener('change', () => {
-            // renderHistory(); // obsolete
+            // Sama zmiana selecta NIE przelicza tabeli na ekranie — ostrzegamy od razu, zamiast
+            // czekać aż użytkownik trafi w blokadę assertGeneratedMonth przy zatwierdzaniu.
+            const selected = document.getElementById('activeMonth').value;
+            const hasTable = Object.values(lastGeneratedResults).some(arr => arr && arr.length);
+            if (hasTable && lastGeneratedMonth && lastGeneratedMonth !== selected) {
+                notifyUser(
+                    `⚠️ Tabela na ekranie jest policzona dla ${lastGeneratedMonth}, a wybrany miesiąc to ${selected}. ` +
+                    `Zatwierdzanie jest zablokowane — wygeneruj faktury na nowo.`,
+                    9000
+                );
+            }
         });
     </script>
 </body>
