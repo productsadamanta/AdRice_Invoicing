@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<!-- Wersja: [1.0.0] - 2026-08-06 | Kalkulator Wartości Leadów (poza Hubem, tylko do odczytu) -->
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Kalkulator Wartości Leadów</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warn: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header { text-align: center; margin-bottom: 2rem; animation: fadeInDown 0.8s ease-out; }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: -webkit-linear-gradient(45deg, #34d399, #60a5fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 0.5rem 0;
+        }
+
+        p { color: var(--text-muted); margin: 0; }
+
+        .container {
+            width: 100%;
+            max-width: 1280px;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1000px) {
+            .container { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin-top: 0;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .readonly-badge {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            border-radius: 10px;
+            padding: 0.75rem 0.9rem;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            color: #a7f3d0;
+            margin-bottom: 1.5rem;
+        }
+        .readonly-badge strong { color: var(--success); }
+
+        .file-input-group { margin-bottom: 1.1rem; }
+
+        .file-input-group label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 0.6rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px dashed var(--glass-border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]:hover { border-color: var(--accent); background: rgba(15, 23, 42, 0.8); }
+
+        input[type="date"] {
+            width: 100%;
+            padding: 0.5rem 0.6rem;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+        }
+        input[type="date"]:focus { outline: none; border-color: var(--accent); }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+        .bucket-box {
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--bucket-color, var(--accent));
+            border-radius: 10px;
+            padding: 0.9rem;
+            margin-bottom: 1rem;
+            background: rgba(15, 23, 42, 0.35);
+        }
+        .bucket-box .bucket-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--bucket-color, var(--accent));
+            margin-bottom: 0.15rem;
+        }
+        .bucket-box .bucket-sub {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            margin-bottom: 0.7rem;
+            line-height: 1.4;
+        }
+        .date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.6rem; }
+        .date-row .field label {
+            display: block;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.2rem;
+        }
+
+        button.generate-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(45deg, #059669, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.35);
+            transition: all 0.3s ease;
+            margin-top: 0.5rem;
+        }
+        button.generate-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45); }
+        button.generate-btn:disabled { background: #475569; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-ghost {
+            width: 100%;
+            margin-top: 0.75rem;
+            padding: 0.6rem;
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+        }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent-hover); }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 0.45rem 0.9rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+        .results-container { display: flex; flex-direction: column; gap: 1.5rem; }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        /* Podsumowanie zbiorcze */
+        .summary-panel {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(59, 130, 246, 0.08));
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 16px;
+            padding: 1.75rem;
+        }
+        .summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
+        .summary-header h2 { margin: 0; border: none; padding: 0; }
+
+        /* Długie nazwy ofert z AdRice potrafią rozepchnąć tabelę — zamiast psuć layout
+           całej strony, tabela dostaje własny poziomy scroll. */
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.7rem 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+        th { color: var(--text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        tbody tr:hover td { background: rgba(255, 255, 255, 0.03); }
+
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .money { text-align: right; font-family: monospace; color: #fbbf24; font-variant-numeric: tabular-nums; }
+        .company-name { font-weight: 700; }
+        .period-cell { font-size: 0.8rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+        tr.subtotal-row td { background: rgba(59, 130, 246, 0.07); font-weight: 600; border-top: 1px solid rgba(59,130,246,0.25); }
+        tr.total-row td {
+            background: rgba(16, 185, 129, 0.12);
+            font-weight: 700;
+            font-size: 1rem;
+            border-top: 2px solid rgba(16, 185, 129, 0.4);
+            border-bottom: none;
+        }
+        tr.total-row .money { color: var(--success); font-size: 1.05rem; }
+
+        /* Karta kubełka */
+        .bucket-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-top: 3px solid var(--bucket-color, var(--accent));
+            border-radius: 12px;
+            padding: 1.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .bucket-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .bucket-card-head h3 { margin: 0 0 0.25rem 0; font-size: 1.25rem; color: var(--bucket-color, var(--accent)); }
+        .bucket-card-head .meta { font-size: 0.8rem; color: var(--text-muted); }
+        .chip {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.15);
+            color: #93c5fd;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-left: 0.4rem;
+        }
+
+        .headline-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .headline-box {
+            flex: 1;
+            min-width: 170px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 1rem 1.2rem;
+        }
+        .headline-box .lbl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.35rem; }
+        .headline-box .val { font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+        .headline-box.value .val { color: var(--success); }
+
+        .country-chips { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .country-chip {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.8rem;
+        }
+        .country-chip b { color: var(--text-main); }
+        .country-chip .cc { color: var(--accent-hover); font-weight: 700; margin-right: 0.4rem; }
+        .country-chip .cv { color: #fbbf24; font-family: monospace; margin-left: 0.4rem; }
+
+        .alert {
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+        .alert.warn { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.35); color: #fde68a; }
+        .alert.danger { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #fecaca; }
+        .alert b { color: #fff; }
+        .alert ul { margin: 0.5rem 0 0 0; padding-left: 1.2rem; }
+        .alert li { margin-bottom: 0.2rem; }
+
+        details { border-top: 1px solid var(--glass-border); padding-top: 0.75rem; }
+        summary { cursor: pointer; color: var(--text-muted); font-size: 0.85rem; user-select: none; padding: 0.25rem 0; }
+        summary:hover { color: var(--accent-hover); }
+        .detail-actions { display: flex; justify-content: flex-end; margin: 0.75rem 0 0.25rem; }
+
+        .offer-name { max-width: 420px; overflow-wrap: anywhere; }
+        .offer-id { font-family: monospace; color: var(--text-muted); font-size: 0.8rem; }
+        .flag-unpriced { color: var(--danger); font-weight: 700; }
+
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--success);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 999;
+        }
+        .notification.show { transform: translateY(0); opacity: 1; }
+
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Kalkulator Wartości Leadów</h1>
+        <p>Ile leadów i za ile narosło od ostatniego okresu — niezależnie od miesiąca kalendarzowego</p>
+    </div>
+
+    <div class="container">
+        <!-- ============ SIDEBAR: WEJŚCIE ============ -->
+        <div class="panel">
+            <div class="readonly-badge">
+                <strong>🔒 Tryb tylko do odczytu.</strong><br>
+                Narzędzie nie dotyka bazy Huba (<code>localStorage</code>), nie zmienia liczników
+                <code>alreadyPaid</code>, nie zapisuje logów i nie wystawia faktur. Możesz je odpalać
+                dowolnie często — liczy wyłącznie to, co jest w podanych plikach.
+            </div>
+
+            <h2>1. Pliki wspólne</h2>
+
+            <div class="file-input-group">
+                <label>1a. Oferty AdRice (Aktywne) — ceny</label>
+                <input type="file" id="fileAdRiceActive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>1b. Oferty AdRice (Nieaktywne) — ceny</label>
+                <input type="file" id="fileAdRiceInactive" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2a. Amsped Lists: Uncapped (SKU → ID)</label>
+                <input type="file" id="fileListsUncapped" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2b. Amsped Lists: Find (SKU → ID)</label>
+                <input type="file" id="fileListsFind" accept=".csv">
+            </div>
+
+            <div class="file-input-group">
+                <label>2c. Amsped Lists: Alcance (SKU → ID)</label>
+                <input type="file" id="fileListsAlcance" accept=".csv">
+            </div>
+
+            <h2 style="margin-top:2rem;">2. Okresy i pliki Perf</h2>
+            <p style="font-size:0.72rem; line-height:1.55; margin-bottom:1.25rem;">
+                Każdy kubełek ma <b style="color:#cbd5e1;">własny, niezależny okres</b>. Plik Perf
+                wyeksportuj z Amsped już za ten okres — narzędzie liczy to, co jest w pliku, a daty
+                poniżej służą do opisania wyniku. Konto <b style="color:#cbd5e1;">Uncapped eksportujesz
+                dwa razy</b>: raz za okres PL, raz za okres HU.
+            </p>
+
+            <div id="bucketInputs"></div>
+
+            <button class="generate-btn" id="calcBtn">💶 Przelicz wartość leadów</button>
+            <button class="btn-ghost" onclick="window.open('index.html', '_blank')">↩ Otwórz Invoicing Hub</button>
+        </div>
+
+        <!-- ============ WYNIKI ============ -->
+        <div class="results-container" id="resultsArea">
+            <div class="panel">
+                <div class="empty-state">
+                    Wgraj pliki po lewej i kliknij <b>Przelicz wartość leadów</b>.<br>
+                    Dostaniesz wartość narosłych leadów osobno dla <b>Trendi PL</b>, <b>Trendi EU</b>,
+                    <b>TradeExpress</b> i <b>SmartMedia</b>, każdy za swój własny okres.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">Skopiowano!</div>
+
+    <script>
+        // =====================================================================
+        // KONFIGURACJA KUBEŁKÓW
+        // Kubełek = jedna „paczka do wyceny”: zestaw krajów + konto Amsped, z którego
+        // pochodzi plik Perf + własny, niezależny okres. Uwaga: Trendi PL i Trendi EU to
+        // ta sama spółka (TrendiSupply), ale rozliczane w różnych cyklach, stąd rozdział.
+        // =====================================================================
+        const BUCKETS = [
+            {
+                key: 'trendi_pl', label: 'Trendi PL', company: 'TrendiSupply',
+                countries: ['PL'], sourceAccount: 'Uncapped', color: '#60a5fa',
+                hint: 'Perf z konta <b>Uncapped</b> za okres PL (wiersze HU zostaną pominięte)'
+            },
+            {
+                key: 'trendi_eu', label: 'Trendi EU', company: 'TrendiSupply',
+                countries: ['DE', 'LT', 'CZ', 'SK', 'LV'], sourceAccount: 'Find', color: '#a78bfa',
+                hint: 'Perf z konta <b>Find</b> (DE, LT, CZ, SK, LV)'
+            },
+            {
+                key: 'tradeexpress', label: 'TradeExpress', company: 'TradeExpress',
+                countries: ['HU'], sourceAccount: 'Uncapped', color: '#34d399',
+                hint: 'Perf z konta <b>Uncapped</b> za okres HU (wiersze PL zostaną pominięte)'
+            },
+            {
+                key: 'smartmedia', label: 'SmartMedia', company: 'SmartMediaSolving',
+                countries: ['PT', 'ES'], sourceAccount: 'Alcance', color: '#fbbf24',
+                hint: 'Perf z konta <b>Alcance</b> (PT, ES)'
+            }
+        ];
+
+        // Globalny stan mapowań (identyczny kształt jak w Hubie)
+        let mappings = { nameToOfferId: {}, offerIdToData: {} };
+        let lastResults = null;
+
+        // =====================================================================
+        // HELPERY TEKSTOWE — skopiowane 1:1 z index.html, żeby wynik tego narzędzia
+        // dopasowywał się do tego, co Hub faktycznie zafakturuje. Jeśli zmieniasz je
+        // w Hubie, zmień i tutaj (świadomie zduplikowane — pliki są samodzielne).
+        // =====================================================================
+        function getCountryCode(productName, sourceAccount, offerId = null) {
+            let nameUpper = String(productName || '').toUpperCase();
+            if (nameUpper.includes("HUNGARY")) return "HU";
+            if (nameUpper.includes("GERMANY")) return "DE";
+            if (nameUpper.includes("LITHUANIA") || nameUpper.includes("LITUANIA")) return "LT";
+            if (nameUpper.includes("CZECH")) return "CZ";
+            if (nameUpper.includes("SLOVAKIA")) return "SK";
+            if (nameUpper.includes("LATVIA")) return "LV";
+            if (nameUpper.includes("PORTUGAL")) return "PT";
+            if (nameUpper.includes("SPAIN")) return "ES";
+            if (nameUpper.includes("FINLAND")) return "FI";
+
+            if (offerId && mappings.offerIdToData[offerId]) {
+                let adRiceName = mappings.offerIdToData[offerId].name.toUpperCase();
+                if (adRiceName.includes("HUNGARY")) return "HU";
+                if (adRiceName.includes("LITHUANIA")) return "LT";
+                if (adRiceName.includes("POLAND")) return "PL";
+            }
+
+            if (sourceAccount === "Uncapped") return "PL";
+            return "PL";
+        }
+
+        function getFullCountryName(code) {
+            const map = {
+                "PL": "Poland", "HU": "Hungary", "DE": "Germany",
+                "LT": "Lithuania", "CZ": "Czechia", "SK": "Slovakia",
+                "LV": "Latvia", "PT": "Portugal", "ES": "Spain", "FI": "Finland"
+            };
+            return map[code] || code;
+        }
+
+        function extractSKU(str) {
+            if (!str) return "UNKNOWN_SKU";
+            let ekaMatch = str.match(/(EK[AM]\s*\d+)/i);
+            if (ekaMatch) return ekaMatch[1].replace(/\s+/g, '').toUpperCase();
+            let match = str.match(/SKU\s*([a-z0-9]+)/i);
+            if (match) return `SKU${match[1].toUpperCase()}`;
+            return "UNKNOWN_SKU";
+        }
+
+        function normalizeAmspedName(name) {
+            if (!name) return "";
+            return name.toLowerCase()
+                .replace(/^(blocked|on hold|\?\?)\s+/i, '')
+                .replace(/\s*\(\s*(?:t-d|t-m|ns|nd|rbs|rsb|ls[_-]n|l_n|d_g|ptc|ll|hh)\s*\)/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function cleanupAdRiceName(name) {
+            if (!name) return "Brak Nazwy";
+            let cleaned = name.replace(/^\[.*?\]\s*/, '');
+            cleaned = cleaned.replace(/\s+\d+(?:[\s\.,]\d{3})*(?:[,\.]\d{1,2})?\s*(?:€|CZK|PLN|HUF|RON|LEI|BGN|EUR).*$/i, '');
+            cleaned = cleaned.replace(/\s*\|.*$/i, '');
+            return cleaned.trim();
+        }
+
+        // Trzystopniowe dopasowanie nazwy Amsped → Offer_ID (jak w Hubie)
+        function resolveOfferId(normalized) {
+            let offerId = mappings.nameToOfferId[normalized] || "NO_ID";
+            if (offerId === "NO_ID") {
+                let withoutSku = normalized.replace(/^sku\w*\s+/i, '');
+                if (withoutSku !== normalized) offerId = mappings.nameToOfferId[withoutSku] || "NO_ID";
+            }
+            if (offerId === "NO_ID") {
+                let withoutSku = normalized.replace(/^sk\d+\s+/i, '');
+                if (withoutSku !== normalized) offerId = mappings.nameToOfferId[withoutSku] || "NO_ID";
+            }
+            return offerId;
+        }
+
+        function parseCSVFile(file, options = {}) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    ...options,
+                    complete: (results) => resolve(results.data),
+                    error: (err) => reject(err)
+                });
+            });
+        }
+
+        // =====================================================================
+        // FORMATOWANIE
+        // =====================================================================
+        function fmtEur(v) {
+            return v.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        }
+        function fmtInt(v) { return v.toLocaleString('pl-PL'); }
+        function fmtDatePL(iso) {
+            if (!iso) return null;
+            const p = iso.split('-');
+            return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+        }
+        function todayISO() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function notify(text) {
+            const n = document.getElementById('notification');
+            n.innerText = text;
+            n.classList.add('show');
+            setTimeout(() => n.classList.remove('show'), 3000);
+        }
+
+        // =====================================================================
+        // BUDOWA FORMULARZA KUBEŁKÓW
+        // =====================================================================
+        function renderBucketInputs() {
+            const host = document.getElementById('bucketInputs');
+            host.innerHTML = BUCKETS.map(b => `
+                <div class="bucket-box" style="--bucket-color:${b.color}">
+                    <div class="bucket-title">${b.label}</div>
+                    <div class="bucket-sub">${b.company} · ${b.countries.join(', ')}<br>${b.hint}</div>
+                    <div class="date-row">
+                        <div class="field">
+                            <label>Od</label>
+                            <input type="date" id="from_${b.key}">
+                        </div>
+                        <div class="field">
+                            <label>Do</label>
+                            <input type="date" id="to_${b.key}" value="${todayISO()}">
+                        </div>
+                    </div>
+                    <input type="file" id="perf_${b.key}" accept=".csv">
+                </div>
+            `).join('');
+        }
+        renderBucketInputs();
+
+        // =====================================================================
+        // PRZETWARZANIE JEDNEGO KUBEŁKA
+        // =====================================================================
+        async function processBucket(bucket, file) {
+            const data = await parseCSVFile(file, { delimiter: ";" });
+
+            const aggregated = {};       // klucz: offerId_KRAJ
+            const skippedByCountry = {}; // wiersze spoza krajów kubełka (zły plik / zła detekcja)
+            let rowsWithLeads = 0;
+
+            data.forEach(row => {
+                const rawName = row["Prodotto"] || row["Nazwa"] || Object.values(row)[0] || "";
+                const positiviRaw = row["Positivi"] || Object.values(row)[7] || "0";
+                const positivi = parseInt(positiviRaw, 10);
+                if (!(positivi > 0)) return;
+                rowsWithLeads++;
+
+                const normalized = normalizeAmspedName(rawName);
+                const offerId = resolveOfferId(normalized);
+                const country = getCountryCode(rawName, bucket.sourceAccount, offerId);
+
+                // Kraj spoza kubełka — NIE wliczamy do sumy, ale raportujemy głośno.
+                // To wyłapuje wgranie pliku Perf do niewłaściwego slotu oraz wiersze,
+                // dla których detekcja kraju spadła do domyślnego PL.
+                if (!bucket.countries.includes(country)) {
+                    if (!skippedByCountry[country]) skippedByCountry[country] = { leads: 0, names: [] };
+                    skippedByCountry[country].leads += positivi;
+                    if (skippedByCountry[country].names.length < 6) {
+                        skippedByCountry[country].names.push(String(rawName).trim());
+                    }
+                    return;
+                }
+
+                const adRiceInfo = mappings.offerIdToData[offerId] || null;
+                let price = adRiceInfo ? parseFloat(adRiceInfo.payout) : 0;
+                if (!Number.isFinite(price)) price = 0;
+
+                // Powód braku wyceny — rozróżniony, bo naprawia się go w innym pliku wejściowym
+                let unpricedReason = null;
+                if (offerId === "NO_ID") unpricedReason = 'brak powiązania SKU → ID oferty (pliki Lists)';
+                else if (!adRiceInfo) unpricedReason = 'oferty nie ma w plikach AdRice (doscrapuj nieaktywne)';
+                else if (price === 0) unpricedReason = 'stawka 0 € w AdRice';
+
+                const key = `${offerId}_${country}`;
+                if (!aggregated[key]) {
+                    aggregated[key] = {
+                        id: offerId,
+                        name: adRiceInfo ? cleanupAdRiceName(adRiceInfo.name) : String(rawName).trim(),
+                        sku: extractSKU(rawName),
+                        country: country,
+                        price: price,
+                        leads: 0,
+                        unpricedReason: unpricedReason
+                    };
+                }
+                // Ta sama oferta bywa w kilku wierszach Amsped (kampania główna + testowa) — sumujemy
+                aggregated[key].leads += positivi;
+            });
+
+            const rows = Object.values(aggregated).map(r => ({ ...r, value: r.leads * r.price }));
+            rows.sort((a, b) => b.value - a.value || b.leads - a.leads);
+
+            const byCountry = {};
+            bucket.countries.forEach(c => { byCountry[c] = { leads: 0, value: 0 }; });
+            let totalLeads = 0, totalValue = 0;
+            rows.forEach(r => {
+                byCountry[r.country].leads += r.leads;
+                byCountry[r.country].value += r.value;
+                totalLeads += r.leads;
+                totalValue += r.value;
+            });
+
+            const unpriced = rows.filter(r => r.unpricedReason);
+            const unpricedLeads = unpriced.reduce((s, r) => s + r.leads, 0);
+
+            return {
+                bucket, rows, byCountry, totalLeads, totalValue,
+                unpriced, unpricedLeads, skippedByCountry, rowsWithLeads,
+                fileName: file.name
+            };
+        }
+
+        // =====================================================================
+        // GŁÓWNY PRZEBIEG
+        // =====================================================================
+        document.getElementById('calcBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('calcBtn');
+            btn.disabled = true;
+            btn.innerText = "Przeliczanie...";
+
+            try {
+                const fileAdRiceActive = document.getElementById('fileAdRiceActive').files[0];
+                const fileAdRiceInactive = document.getElementById('fileAdRiceInactive').files[0];
+                const fileListsUncapped = document.getElementById('fileListsUncapped').files[0];
+                const fileListsFind = document.getElementById('fileListsFind').files[0];
+                const fileListsAlcance = document.getElementById('fileListsAlcance').files[0];
+
+                if (!fileAdRiceActive && !fileAdRiceInactive) {
+                    alert("Musisz wgrać przynajmniej jeden plik ofert AdRice (Aktywne lub Nieaktywne) — bez niego nie ma z czego wziąć cen.");
+                    return;
+                }
+                if (!fileListsUncapped && !fileListsFind && !fileListsAlcance) {
+                    alert("Musisz wgrać przynajmniej jedną listę ofert (Amsped Lists) — bez niej nie da się powiązać nazw z ID ofert.");
+                    return;
+                }
+
+                const activeBuckets = BUCKETS
+                    .map(b => ({ bucket: b, file: document.getElementById(`perf_${b.key}`).files[0] }))
+                    .filter(x => x.file);
+
+                if (activeBuckets.length === 0) {
+                    alert("Wgraj przynajmniej jeden plik Perf (dowolny kubełek).");
+                    return;
+                }
+
+                // --- Ceny z AdRice ---
+                mappings.offerIdToData = {};
+                const processAdRice = async (advFile) => {
+                    if (!advFile) return;
+                    const adRiceData = await parseCSVFile(advFile, { delimiter: ";" });
+                    adRiceData.forEach(row => {
+                        const id = row["Offer_ID"]?.trim();
+                        if (id) {
+                            mappings.offerIdToData[id] = {
+                                name: row["Offer_Name"]?.trim() || "Brak Nazwy",
+                                payout: parseFloat(row["Payout"] || "0").toFixed(2)
+                            };
+                        }
+                    });
+                };
+                await processAdRice(fileAdRiceActive);
+                await processAdRice(fileAdRiceInactive);
+
+                // --- Mapowanie nazwa Amsped → Offer_ID ---
+                mappings.nameToOfferId = {};
+                const processList = async (listFile) => {
+                    if (!listFile) return;
+                    const listsData = await parseCSVFile(listFile);
+                    listsData.forEach(row => {
+                        const nameCol = row["name"] || row["Name"] || row["Prodotto"] || Object.values(row)[2] || "";
+                        const ucpCol = row["SKU"] || row["sku"] || Object.values(row)[1] || "";
+                        const offerIdMatch = ucpCol.match(/UCP(\d+)/i);
+                        const offerId = offerIdMatch ? offerIdMatch[1] : "";
+                        if (nameCol && offerId !== "") {
+                            mappings.nameToOfferId[normalizeAmspedName(nameCol)] = offerId;
+                        }
+                    });
+                };
+                await processList(fileListsUncapped);
+                await processList(fileListsFind);
+                await processList(fileListsAlcance);
+
+                // --- Kubełki ---
+                const results = [];
+                for (const { bucket, file } of activeBuckets) {
+                    const res = await processBucket(bucket, file);
+                    res.dateFrom = document.getElementById(`from_${bucket.key}`).value || null;
+                    res.dateTo = document.getElementById(`to_${bucket.key}`).value || null;
+                    results.push(res);
+                }
+
+                lastResults = results;
+                renderResults(results);
+
+            } catch (error) {
+                console.error(error);
+                alert("Wystąpił błąd podczas przeliczania: " + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "💶 Przelicz wartość leadów";
+            }
+        });
+
+        // =====================================================================
+        // RENDER
+        // =====================================================================
+        function periodLabel(res) {
+            const f = fmtDatePL(res.dateFrom), t = fmtDatePL(res.dateTo);
+            if (f && t) return `${f} → ${t}`;
+            if (t) return `? → ${t}`;
+            if (f) return `${f} → ?`;
+            return 'okres nieuzupełniony';
+        }
+
+        function renderResults(results) {
+            const container = document.getElementById('resultsArea');
+            container.innerHTML = renderSummary(results) + results.map(renderBucketCard).join('');
+        }
+
+        function renderSummary(results) {
+            const csvRows = ['Kubełek;Firma;Okres;Leady;Wartość'];
+            let grandLeads = 0, grandValue = 0;
+
+            let body = '';
+            results.forEach(res => {
+                grandLeads += res.totalLeads;
+                grandValue += res.totalValue;
+                csvRows.push([
+                    res.bucket.label, res.bucket.company, periodLabel(res),
+                    res.totalLeads,
+                    res.totalValue.toFixed(2).replace('.', ',')
+                ].join(';'));
+                body += `
+                    <tr>
+                        <td class="company-name" style="color:${res.bucket.color}">${res.bucket.label}</td>
+                        <td class="period-cell">${escapeHtml(periodLabel(res))}</td>
+                        <td class="num">${fmtInt(res.totalLeads)}</td>
+                        <td class="money">${fmtEur(res.totalValue)}</td>
+                    </tr>`;
+            });
+
+            // TrendiSupply to jedna spółka rozliczana w dwóch cyklach — pokazujemy też sumę,
+            // ale wyłącznie gdy oba kubełki faktycznie policzono (inaczej byłoby mylące).
+            const pl = results.find(r => r.bucket.key === 'trendi_pl');
+            const eu = results.find(r => r.bucket.key === 'trendi_eu');
+            if (pl && eu) {
+                body += `
+                    <tr class="subtotal-row">
+                        <td colspan="2">TrendiSupply razem (PL + EU)</td>
+                        <td class="num">${fmtInt(pl.totalLeads + eu.totalLeads)}</td>
+                        <td class="money">${fmtEur(pl.totalValue + eu.totalValue)}</td>
+                    </tr>`;
+                csvRows.push(`TrendiSupply razem (PL + EU);TrendiSupply;;${pl.totalLeads + eu.totalLeads};${(pl.totalValue + eu.totalValue).toFixed(2).replace('.', ',')}`);
+            }
+
+            body += `
+                <tr class="total-row">
+                    <td colspan="2">SUMA WSZYSTKICH KUBEŁKÓW</td>
+                    <td class="num">${fmtInt(grandLeads)}</td>
+                    <td class="money">${fmtEur(grandValue)}</td>
+                </tr>`;
+            csvRows.push(`SUMA;;;${grandLeads};${grandValue.toFixed(2).replace('.', ',')}`);
+
+            window.lastSummaryCSV = csvRows.join('\n');
+
+            const totalUnpriced = results.reduce((s, r) => s + r.unpricedLeads, 0);
+            const unpricedBanner = totalUnpriced > 0 ? `
+                <div class="alert danger" style="margin-top:1.25rem; margin-bottom:0;">
+                    <b>⚠ ${fmtInt(totalUnpriced)} leadów bez ceny</b> weszło do powyższych sum z wartością
+                    0 €. Rzeczywista wartość jest <b>wyższa</b> niż pokazana. Szczegóły w kartach poniżej.
+                </div>` : '';
+
+            return `
+                <div class="summary-panel">
+                    <div class="summary-header">
+                        <h2>📊 Wartość leadów narosłych w okresie</h2>
+                        <button class="copy-btn" onclick="copySummaryCSV()">📋 Kopiuj CSV</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Kubełek</th>
+                                    <th>Okres</th>
+                                    <th class="num">Leady</th>
+                                    <th class="num">Wartość</th>
+                                </tr>
+                            </thead>
+                            <tbody>${body}</tbody>
+                        </table>
+                    </div>
+                    ${unpricedBanner}
+                </div>`;
+        }
+
+        function renderBucketCard(res) {
+            const b = res.bucket;
+
+            // --- Alerty ---
+            let alerts = '';
+
+            if (!res.dateFrom || !res.dateTo) {
+                alerts += `<div class="alert warn">📅 <b>Okres nieuzupełniony.</b> Wynik jest policzony z pliku
+                    i jest poprawny, ale nie wiadomo, jakiego zakresu dat dotyczy — uzupełnij daty, żeby
+                    podsumowanie dało się później odczytać.</div>`;
+            } else if (res.dateFrom > res.dateTo) {
+                alerts += `<div class="alert danger">📅 <b>Data „od” jest późniejsza niż „do”.</b> Sprawdź, czy
+                    wgrany plik Perf faktycznie dotyczy tego okresu.</div>`;
+            }
+
+            if (res.unpricedLeads > 0) {
+                const byReason = {};
+                res.unpriced.forEach(r => {
+                    if (!byReason[r.unpricedReason]) byReason[r.unpricedReason] = { leads: 0, offers: [] };
+                    byReason[r.unpricedReason].leads += r.leads;
+                    if (byReason[r.unpricedReason].offers.length < 6) {
+                        byReason[r.unpricedReason].offers.push(`${r.name} (${r.country}, ${fmtInt(r.leads)} szt.)`);
+                    }
+                });
+                alerts += `<div class="alert danger">
+                    <b>⚠ ${fmtInt(res.unpricedLeads)} leadów bez ceny — policzone jako 0 €.</b>
+                    Wartość tego kubełka jest zaniżona.
+                    <ul>${Object.entries(byReason).map(([reason, d]) => `
+                        <li><b>${fmtInt(d.leads)} szt.</b> — ${escapeHtml(reason)}<br>
+                        <span style="opacity:0.75; font-size:0.95em;">${d.offers.map(escapeHtml).join(' · ')}${d.offers.length >= 6 ? ' …' : ''}</span></li>`).join('')}</ul>
+                </div>`;
+            }
+
+            const skippedEntries = Object.entries(res.skippedByCountry);
+            if (skippedEntries.length > 0) {
+                const skippedLeads = skippedEntries.reduce((s, [, d]) => s + d.leads, 0);
+                alerts += `<div class="alert warn">
+                    <b>ℹ Pominięto ${fmtInt(skippedLeads)} leadów spoza krajów tego kubełka</b>
+                    (kubełek obejmuje: ${b.countries.join(', ')}).
+                    To normalne dla konta Uncapped, które miesza PL i HU. Jeśli liczby wyglądają
+                    na zamienione, sprawdź, czy plik trafił do właściwego slotu.
+                    <ul>${skippedEntries.map(([c, d]) => `
+                        <li><b>${c}</b> — ${fmtInt(d.leads)} szt.<br>
+                        <span style="opacity:0.75; font-size:0.95em;">${d.names.map(escapeHtml).join(' · ')}${d.names.length >= 6 ? ' …' : ''}</span></li>`).join('')}</ul>
+                </div>`;
+            }
+
+            // --- Kraje ---
+            const chips = b.countries.map(c => {
+                const d = res.byCountry[c];
+                return `<div class="country-chip">
+                    <span class="cc">${c}</span><b>${fmtInt(d.leads)}</b> szt.
+                    <span class="cv">${fmtEur(d.value)}</span>
+                </div>`;
+            }).join('');
+
+            // --- Tabela szczegółowa ---
+            const detailRows = res.rows.map(r => `
+                <tr>
+                    <td class="offer-name">${escapeHtml(r.name)}${r.unpricedReason ? ' <span class="flag-unpriced" title="' + escapeHtml(r.unpricedReason) + '">⚠</span>' : ''}</td>
+                    <td class="offer-id">${r.id === 'NO_ID' ? 'NO_ID' : '#' + r.id}</td>
+                    <td>${r.country}</td>
+                    <td class="num">${fmtInt(r.leads)}</td>
+                    <td class="money">${r.price.toFixed(2)} €</td>
+                    <td class="money">${fmtEur(r.value)}</td>
+                </tr>`).join('');
+
+            return `
+                <div class="bucket-card" style="--bucket-color:${b.color}">
+                    <div class="bucket-card-head">
+                        <div>
+                            <h3>${b.label}<span class="chip">${b.company}</span></h3>
+                            <div class="meta">
+                                ${escapeHtml(periodLabel(res))} ·
+                                ${b.countries.join(', ')} ·
+                                plik: ${escapeHtml(res.fileName)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="headline-row">
+                        <div class="headline-box">
+                            <div class="lbl">Leady w okresie</div>
+                            <div class="val">${fmtInt(res.totalLeads)}</div>
+                        </div>
+                        <div class="headline-box value">
+                            <div class="lbl">Wartość leadów</div>
+                            <div class="val">${fmtEur(res.totalValue)}</div>
+                        </div>
+                        <div class="headline-box">
+                            <div class="lbl">Ofert w zestawieniu</div>
+                            <div class="val">${fmtInt(res.rows.length)}</div>
+                        </div>
+                    </div>
+
+                    ${b.countries.length > 1 ? `<div class="country-chips">${chips}</div>` : ''}
+                    ${alerts}
+
+                    <details>
+                        <summary>Rozbicie na oferty (${res.rows.length})</summary>
+                        <div class="detail-actions">
+                            <button class="copy-btn" onclick="copyBucketTable('${b.key}')">📋 Kopiuj tabelę (TSV)</button>
+                        </div>
+                        <div class="table-scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Oferta</th>
+                                        <th>ID</th>
+                                        <th>Kraj</th>
+                                        <th class="num">Leady</th>
+                                        <th class="num">Cena/szt</th>
+                                        <th class="num">Wartość</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${detailRows || '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Brak pozycji z Positivi > 0 dla krajów tego kubełka</td></tr>'}</tbody>
+                            </table>
+                        </div>
+                    </details>
+                </div>`;
+        }
+
+        // =====================================================================
+        // KOPIOWANIE
+        // =====================================================================
+        window.copySummaryCSV = function () {
+            if (!window.lastSummaryCSV) return;
+            navigator.clipboard.writeText(window.lastSummaryCSV)
+                .then(() => notify("Skopiowano podsumowanie (CSV, średnik)!"));
+        };
+
+        // TSV z przecinkiem dziesiętnym — wkleja się prosto do polskiego Excela / Arkuszy
+        window.copyBucketTable = function (bucketKey) {
+            if (!lastResults) return;
+            const res = lastResults.find(r => r.bucket.key === bucketKey);
+            if (!res) return;
+
+            const lines = res.rows.map(r => [
+                r.name.replace(/\t/g, ' '),
+                r.id === 'NO_ID' ? 'NO_ID' : '#' + r.id,
+                r.country,
+                r.leads,
+                r.price.toFixed(2).replace('.', ','),
+                r.value.toFixed(2).replace('.', ',')
+            ].join('\t'));
+
+            lines.push([
+                `RAZEM ${res.bucket.label} (${periodLabel(res)})`, '', '',
+                res.totalLeads, '', res.totalValue.toFixed(2).replace('.', ',')
+            ].join('\t'));
+
+            navigator.clipboard.writeText(lines.join('\n'))
+                .then(() => notify(`Skopiowano tabelę: ${res.bucket.label}`));
+        };
+    </script>
+</body>
+
+</html>
