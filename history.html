@@ -405,7 +405,7 @@
 
                 // Sum stat
                 let totalLeads = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + it.delta, 0), 0);
-                let totalEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0), 0);
+                let totalEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0) + (l.adjustments || []).reduce((s, adj) => s + adj.amount, 0), 0);
                 
                 // NOWOŚĆ: Podsumowanie Produktów
                 const summaryHtml = renderMonthlySummary(logs, type);
@@ -435,7 +435,7 @@
                 let activeRowNum = 1;
                 logs.reverse().forEach((log, idx) => {
                     let d = log.items.reduce((s, it) => s + it.delta, 0);
-                    let val = log.items.reduce((s, it) => s + (it.delta * it.price), 0);
+                    let val = log.items.reduce((s, it) => s + (it.delta * it.price), 0) + (log.adjustments || []).reduce((s, adj) => s + adj.amount, 0);
                     let realIdxInDB = db.logs.indexOf(log);
 
                     html += `
@@ -648,6 +648,9 @@
                     if (it.delta !== 0) {
                         csv += `${it.title}\t${it.delta}\t${it.price.toFixed(2)}\t${(it.delta * it.price).toFixed(2)}\n`;
                     }
+                });
+                (log.adjustments || []).forEach(adj => {
+                    csv += `${adj.source === 'reconciliation' ? 'Rekoncyliacja' : 'Korekta'} / Rabat (wyrównanie za: ${adj.month})\t-\t${Math.abs(adj.amount).toFixed(2)}\t${adj.amount.toFixed(2)}\n`;
                 });
                 csv += `SUMA CAŁKOWITA:\t${sumDelta}\t-\t${sumTotal.toFixed(2)}`;
 
