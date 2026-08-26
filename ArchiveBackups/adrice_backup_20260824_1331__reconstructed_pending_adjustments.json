@@ -1,0 +1,840 @@
+[
+  {
+    "id": "adj_reconstructed_1787729361582_1",
+    "account": "find",
+    "amount": 5421.5,
+    "month": "2026-05",
+    "timestamp": "18.06.2026, 13:02:55",
+    "status": "pending",
+    "items": [
+      {
+        "id": "2285",
+        "delta": 111,
+        "price": 20,
+        "title": "Lead Generation Air Curtain Germany SKU2069 #2285"
+      },
+      {
+        "id": "4043",
+        "delta": 5,
+        "price": 19,
+        "title": "Lead Generation Grass trimmer Latvia SKU456 #4043"
+      },
+      {
+        "id": "1817",
+        "delta": 43,
+        "price": 17,
+        "title": "Lead Generation Grass trimmer (SEASONAL OFFER) Germany SKU456 #1817"
+      },
+      {
+        "id": "1818",
+        "delta": 7,
+        "price": 19,
+        "title": "Lead Generation Grass trimmer (SEASONAL OFFER) Lithuania SKU456 #1818"
+      },
+      {
+        "id": "23",
+        "delta": 11,
+        "price": 18,
+        "title": "Lead Generation ELECTRIC GRASS TRIMMER Germany SKU456 #23"
+      },
+      {
+        "id": "3374",
+        "delta": 5,
+        "price": 17,
+        "title": "Lead Generation Grass trimmer Lithuania SKU456 #3374"
+      },
+      {
+        "id": "3063",
+        "delta": 21,
+        "price": 22,
+        "title": "Lead Generation Cooling and heating air conditioner Germany SKU546 #3063"
+      },
+      {
+        "id": "2286",
+        "delta": 2,
+        "price": 23,
+        "title": "Lead Generation Air Curtain Lithuania SKU2069 #2286"
+      },
+      {
+        "id": "3426",
+        "delta": 8,
+        "price": 18,
+        "title": "Lead Generation Air Curtain Latvia SKU2069 #3426"
+      },
+      {
+        "id": "33",
+        "delta": 7,
+        "price": 18,
+        "title": "Lead Generation MINI ELECTRIC SAW Germany SKU368 #33"
+      },
+      {
+        "id": "3343",
+        "delta": 5,
+        "price": 18,
+        "title": "Lead Generation Air Curtain Lithuania SKU2069 #3343"
+      },
+      {
+        "id": "3177",
+        "delta": 4,
+        "price": 22,
+        "title": "Lead Generation Set of pots Germany SKU393 #3177"
+      },
+      {
+        "id": "3646",
+        "delta": 1,
+        "price": 18,
+        "title": "Lead Generation Hand vacuum cleaner Lithuania SKU421 #3646"
+      },
+      {
+        "id": "2931",
+        "delta": 3,
+        "price": 16,
+        "title": "Lead Generation Translator Lithuania SKU552 #2931"
+      },
+      {
+        "id": "4042",
+        "delta": 1,
+        "price": 21.5,
+        "title": "Lead Generation Grass trimmer Slovakia SKU456 #4042"
+      },
+      {
+        "id": "2439",
+        "delta": 1,
+        "price": 18,
+        "title": "Lead Generation Tactical flashlight Germany SKU290 #2439"
+      },
+      {
+        "id": "3178",
+        "delta": 2,
+        "price": 17,
+        "title": "Lead Generation Set of pots Lithuania SKU393 #3178"
+      },
+      {
+        "id": "3376",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Juicemaker Lithuania SKU2035 #3376"
+      },
+      {
+        "id": "884",
+        "delta": 2,
+        "price": 17,
+        "title": "Lead Generation NEW Cordless grass trimmer + video a Lithuania SKU456 #884"
+      },
+      {
+        "id": "2367",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Rotating camera Lithuania SKU294 #2367"
+      },
+      {
+        "id": "648",
+        "delta": 2,
+        "price": 17,
+        "title": "Lead Generation Camera for bulbs a Lithuania SKU364 #648"
+      },
+      {
+        "id": "659",
+        "delta": 1,
+        "price": 19,
+        "title": "Lead Generation Car mirror recorder a Lithuania SKU191 #659"
+      },
+      {
+        "id": "3050",
+        "delta": 2,
+        "price": 19,
+        "title": "Lead Generation Meat mincer Lithuania EKM033 #3050"
+      },
+      {
+        "id": "1518",
+        "delta": 4,
+        "price": 16,
+        "title": "Lead Generation Juicemaker Germany SKU2035 #1518"
+      },
+      {
+        "id": "1744",
+        "delta": 3,
+        "price": 20,
+        "title": "Lead Generation Grass Trimmer Germany SKU456 #1744"
+      },
+      {
+        "id": "3139",
+        "delta": 3,
+        "price": 16,
+        "title": "Lead Generation Smartwatch Germany SKU2130 #3139"
+      },
+      {
+        "id": "3049",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Meat mincer Germany EKM033 #3049"
+      },
+      {
+        "id": "2136",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Smartwatch V17 Lithuania SKU6093 #2136"
+      },
+      {
+        "id": "3083",
+        "delta": 1,
+        "price": 19,
+        "title": "Lead Generation Trimmer Germany SKU279 #3083"
+      },
+      {
+        "id": "3237",
+        "delta": 3,
+        "price": 17,
+        "title": "Lead Generation Column air conditioner (cooling and heating) Lithuania SKU6062 #3237"
+      },
+      {
+        "id": "3248",
+        "delta": 2,
+        "price": 20,
+        "title": "Lead Generation Mini saw Germany SKU368 #3248"
+      },
+      {
+        "id": "3590",
+        "delta": 1,
+        "price": 22,
+        "title": "Lead Generation Fan heater Czechia SKU6062 #3590"
+      },
+      {
+        "id": "1920",
+        "delta": 1,
+        "price": 20,
+        "title": "Lead Generation Car Protector Czechia SKU2190 #1920"
+      },
+      {
+        "id": "2895",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation Cordless electric cleaning brush Lithuania SKU380 #2895"
+      },
+      {
+        "id": "3129",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Air compresor Czechia SKU6094 #3129"
+      },
+      {
+        "id": "3871",
+        "delta": 1,
+        "price": 18,
+        "title": "Lead Generation Set of 2 lamps and 2 cameras in a bulb Lithuania SKU2269 #3871"
+      },
+      {
+        "id": "470",
+        "delta": 4,
+        "price": 22,
+        "title": "Lead Generation Heater air curtain a Lithuania SKU2069 #470"
+      },
+      {
+        "id": "4081",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation 2x1 Solar lamps set Latvia SKU507 #4081"
+      },
+      {
+        "id": "2869",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation 2x1 Solar lamps set Lithuania SKU507 #2869"
+      },
+      {
+        "id": "4168",
+        "delta": 1,
+        "price": 14,
+        "title": "Lead Generation 5x Slimming patches Lithuania SKU182 #4168"
+      },
+      {
+        "id": "1277",
+        "delta": 1,
+        "price": 15,
+        "title": "Lead Generation Air Conditioner Lithuania SKU178 #1277"
+      },
+      {
+        "id": "3325",
+        "delta": 2,
+        "price": 18,
+        "title": "Lead Generation Sprayer Czechia SKU523 #3325"
+      },
+      {
+        "id": "3158",
+        "delta": 1,
+        "price": 19,
+        "title": "Lead Generation Cordless scissors Germany SKU466 #3158"
+      },
+      {
+        "id": "2974",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation 2X1 Insect repellent Lithuania SKU028 #2974"
+      },
+      {
+        "id": "3320",
+        "delta": 1,
+        "price": 19,
+        "title": "Lead Generation Sprayer Germany SKU523 #3320"
+      },
+      {
+        "id": "3353",
+        "delta": 3,
+        "price": 19,
+        "title": "Lead Generation Hedge trimmers Lithuania SKU7007 #3353"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_2",
+    "account": "de",
+    "amount": 97,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "2285",
+        "title": "Rekoncyliacja #2285 — 519*23€ + 5087*20€ = 113677€ - 113580€ = 97€",
+        "delta": 1,
+        "price": 97
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_3",
+    "account": "de",
+    "amount": 24,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "33",
+        "title": "Rekoncyliacja #33 — 43*20€ + 147*18€ = 3506€ - 3482€ = 24€",
+        "delta": 1,
+        "price": 24
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_4",
+    "account": "de",
+    "amount": 6,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3049",
+        "title": "Rekoncyliacja #3049 — 6*19€ + 43*17€ = 845€ - 839€ = 6€",
+        "delta": 1,
+        "price": 6
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_5",
+    "account": "es",
+    "amount": 84,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3234",
+        "title": "Rekoncyliacja #3234 — 89*20€ + 181*17€ = 4857€ - 4773€ = 84€",
+        "delta": 1,
+        "price": 84
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_6",
+    "account": "hu",
+    "amount": 8,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3323",
+        "title": "Rekoncyliacja #3323 — 107x18€ + 91*17€ = 3473€ - 3465€ = 8€",
+        "delta": 1,
+        "price": 8
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_7",
+    "account": "hu",
+    "amount": 16,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3052",
+        "title": "Rekoncyliacja #3052 — 30*18€ + 41*17€ = 1237€ - 1221€ = 16€",
+        "delta": 1,
+        "price": 16
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_8",
+    "account": "lt",
+    "amount": 20,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3686",
+        "title": "Rekoncyliacja #3686 — 77*20€ + 1*18€ = 1558€ - 1538€ = 20€",
+        "delta": 1,
+        "price": 20
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_9",
+    "account": "lt",
+    "amount": 379,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3374",
+        "title": "Rekoncyliacja #3374 — 400*21€ + 217*17€ = 12089€ - 11710€ = 379€",
+        "delta": 1,
+        "price": 379
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_10",
+    "account": "lt",
+    "amount": 104,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3064",
+        "title": "Rekoncyliacja #3064 — 84*24€ + 289*20€ = 7796€ - 7692€ = 104€",
+        "delta": 1,
+        "price": 104
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_11",
+    "account": "lt",
+    "amount": 80,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3421",
+        "title": "Rekoncyliacja #3421 — 71*20€ + 24*18€ = 1852€ - 1772€ = 80€",
+        "delta": 1,
+        "price": 80
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_12",
+    "account": "lv",
+    "amount": 78,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3426",
+        "title": "Rekoncyliacja #3426 — 39*20€ + 290*18€ = 6000€ - 5922€ = 78€",
+        "delta": 1,
+        "price": 78
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_13",
+    "account": "pt",
+    "amount": 132,
+    "month": "2026-06",
+    "timestamp": "29.07.2026, 21:38:41",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3235",
+        "title": "Rekoncyliacja #3235 — 197*20€ + 53*17€ = 4841€ - 4709€ = 132€",
+        "delta": 1,
+        "price": 132
+      }
+    ],
+    "source": "reconciliation"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_14",
+    "account": "lt",
+    "amount": 33,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:47:40",
+    "status": "pending",
+    "items": [
+      {
+        "id": "1682",
+        "title": "Rekoncyliacja #1682",
+        "delta": 1,
+        "price": 33
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621660225_bndlz"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_15",
+    "account": "lt",
+    "amount": 124,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:47:53",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3646",
+        "title": "Rekoncyliacja #3646",
+        "delta": 1,
+        "price": 124
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621673565_3x8z2"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_16",
+    "account": "lt",
+    "amount": 5,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:48:13",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3412",
+        "title": "Rekoncyliacja #3412",
+        "delta": 1,
+        "price": 5
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621693032_bp3oh"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_17",
+    "account": "de",
+    "amount": 77,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:48:20",
+    "status": "pending",
+    "items": [
+      {
+        "id": "23",
+        "title": "Rekoncyliacja #23",
+        "delta": 1,
+        "price": 77
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621700463_qgq94"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_18",
+    "account": "de",
+    "amount": -892,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:48:27",
+    "status": "pending",
+    "items": [
+      {
+        "id": "1817",
+        "title": "Rekoncyliacja #1817",
+        "delta": 1,
+        "price": -892
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621707721_zxkyb"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_19",
+    "account": "hu",
+    "amount": 20,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:48:42",
+    "status": "pending",
+    "items": [
+      {
+        "id": "2040",
+        "title": "Rekoncyliacja #2040",
+        "delta": 1,
+        "price": 20
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621722567_n2bol"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_20",
+    "account": "hu",
+    "amount": 20,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:48:57",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3036",
+        "title": "Rekoncyliacja #3036",
+        "delta": 1,
+        "price": 20
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621737058_w5x8l"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_21",
+    "account": "cz",
+    "amount": 344,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:49:07",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3590",
+        "title": "Rekoncyliacja #3590",
+        "delta": 1,
+        "price": 344
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621747017_01x1u"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_22",
+    "account": "pl",
+    "amount": -40,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:49:27",
+    "status": "pending",
+    "items": [
+      {
+        "id": "1819",
+        "title": "Rekoncyliacja #1819",
+        "delta": 1,
+        "price": -40
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621767820_abnin"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_23",
+    "account": "cz",
+    "amount": -47,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:49:32",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3262",
+        "title": "Rekoncyliacja #3262",
+        "delta": 1,
+        "price": -47
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621772933_v1wm3"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_24",
+    "account": "sk",
+    "amount": -15,
+    "month": "2026-07",
+    "timestamp": "13.08.2026, 13:49:37",
+    "status": "pending",
+    "items": [
+      {
+        "id": "4042",
+        "title": "Rekoncyliacja #4042",
+        "delta": 1,
+        "price": -15
+      }
+    ],
+    "source": "reconciliation",
+    "reconciliationStagingId": "recon_1786621777419_h0jgy"
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_25",
+    "account": "pl",
+    "amount": -2,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:42:49",
+    "status": "pending",
+    "items": [
+      {
+        "id": "4039",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation Hedge trimmers Poland SKU7007 #4039"
+      },
+      {
+        "id": "1819",
+        "delta": -1,
+        "price": 18,
+        "title": "Lead Generation Grass trimmer (SEASONAL OFFER) Poland SKU456 #1819"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_26",
+    "account": "hu",
+    "amount": 1,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:44:17",
+    "status": "pending",
+    "items": [
+      {
+        "id": "2881",
+        "delta": 1,
+        "price": 16,
+        "title": "Lead Generation Smartwatch V17 Hungary SKU6093 #2881"
+      },
+      {
+        "id": "1749",
+        "delta": 1,
+        "price": 17,
+        "title": "Lead Generation Cordless screwdriver Hungary SKU395 #1749"
+      },
+      {
+        "id": "3036",
+        "delta": -1,
+        "price": 16,
+        "title": "Lead Generation Inflatable bed Hungary SKU532 #3036"
+      },
+      {
+        "id": "2040",
+        "delta": -1,
+        "price": 16,
+        "title": "Lead Generation Mini chain saw Hungary SKU368 #2040"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_27",
+    "account": "de",
+    "amount": -20,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:44:54",
+    "status": "pending",
+    "items": [
+      {
+        "id": "2285",
+        "delta": 1,
+        "price": 20,
+        "title": "Lead Generation Air Curtain Germany SKU2069 #2285"
+      },
+      {
+        "id": "1817",
+        "delta": -1,
+        "price": 20,
+        "title": "Lead Generation Grass trimmer (SEASONAL OFFER) Germany SKU456 #1817"
+      },
+      {
+        "id": "23",
+        "delta": -1,
+        "price": 20,
+        "title": "Lead Generation ELECTRIC GRASS TRIMMER Germany SKU456 #23"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_28",
+    "account": "lt",
+    "amount": -53,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:45:22",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3646",
+        "delta": -1,
+        "price": 16,
+        "title": "Lead Generation Hand vacuum cleaner Lithuania SKU421 #3646"
+      },
+      {
+        "id": "1682",
+        "delta": -1,
+        "price": 17,
+        "title": "Lead Generation Pressure washer Lithuania SKU431 #1682"
+      },
+      {
+        "id": "3412",
+        "delta": -1,
+        "price": 20,
+        "title": "Lead Generation Screwdriver set Lithuania SKU395 #3412"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_29",
+    "account": "cz",
+    "amount": -41,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:45:47",
+    "status": "pending",
+    "items": [
+      {
+        "id": "3590",
+        "delta": -1,
+        "price": 20,
+        "title": "Lead Generation Fan heater Czechia SKU6062 #3590"
+      },
+      {
+        "id": "3262",
+        "delta": -1,
+        "price": 21,
+        "title": "Lead Generation Grass Trimmer Czechia SKU456 #3262"
+      }
+    ]
+  },
+  {
+    "id": "adj_reconstructed_1787729361582_30",
+    "account": "sk",
+    "amount": -22.5,
+    "month": "2026-07",
+    "timestamp": "19.08.2026, 09:46:16",
+    "status": "pending",
+    "items": [
+      {
+        "id": "4042",
+        "delta": -1,
+        "price": 22.5,
+        "title": "Lead Generation Grass trimmer Slovakia SKU456 #4042"
+      }
+    ]
+  }
+]
