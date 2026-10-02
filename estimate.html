@@ -513,6 +513,21 @@
             return cleaned.trim();
         }
 
+        // Ręczne aliasy: Amsped czasem generuje dla TEGO SAMEGO offeru inną nazwę w raporcie
+        // Perf (leady) niż w pliku Lists (mapowanie SKU→Offer_ID) — np. tłumaczenie na polski
+        // tylko w jednym z dwóch eksportów. Normalizacja nazw nie potrafi tego pogodzić (to nie
+        // literówka/wielkość liter, tylko inny język), więc trzeba to wpisać ręcznie tutaj, po
+        // ustaleniu prawdziwego Offer_ID z pliku Lists/AdRice. Klucz = normalizeAmspedName(nazwa
+        // z Perf), wartość = Offer_ID.
+        // Incydent 2026-09-23: SKU2084 PL — Perf mówi "Elektryczny podgrzewacz wody 2 (T-D)",
+        // Lists mówi "SKU2084 Water heater POLAND 2 (T-D)" → to offer #3003 (15,50 €).
+        // Incydent 2026-10-02: SKU312 HU — Perf: "SKU312 Glasses X2 HUNGARY (T-D)", Lists:
+        // "SKU312 Glasses X2 HUNGARY 2 (T-D)" (UCP3430) → offer #3430 (16,00 €).
+        const MANUAL_OFFER_ID_ALIASES = {
+            'sku2084 elektryczny podgrzewacz wody 2': '3003',
+            'sku312 glasses x2 hungary': '3430'
+        };
+
         // Trzystopniowe dopasowanie nazwy Amsped → Offer_ID (jak w Hubie)
         function resolveOfferId(normalized) {
             let offerId = mappings.nameToOfferId[normalized] || "NO_ID";
@@ -523,6 +538,9 @@
             if (offerId === "NO_ID") {
                 let withoutSku = normalized.replace(/^sk\d+\s+/i, '');
                 if (withoutSku !== normalized) offerId = mappings.nameToOfferId[withoutSku] || "NO_ID";
+            }
+            if (offerId === "NO_ID" && MANUAL_OFFER_ID_ALIASES[normalized]) {
+                offerId = MANUAL_OFFER_ID_ALIASES[normalized];
             }
             return offerId;
         }

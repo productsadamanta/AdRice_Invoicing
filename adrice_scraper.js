@@ -14,6 +14,9 @@
     }
 
     const targetAdvertisers = ["TrendiSupply", "EuroFlex", "SmartMediaSolving"];
+    // Dopasowanie ignoruje spacje/wielkość liter — AdRice potrafi po cichu zmienić nazwę advertisera
+    // (np. "TrendiSupply" -> "Trendi Supply"), co przy dopasowaniu 1:1 wycinało całe konto z eksportu.
+    const normalizeAdvName = s => (s || "").replace(/\s+/g, '').toLowerCase();
 
     let rows = table.querySelectorAll('tbody tr');
     let offersToScan = [];
@@ -24,7 +27,7 @@
         let offerId = row.querySelector('td:nth-child(1)')?.innerText.trim();
         let offerName = row.querySelector('td:nth-child(2)')?.innerText.trim();
 
-        if (offerId && !isNaN(offerId) && targetAdvertisers.some(t => advName.includes(t))) {
+        if (offerId && !isNaN(offerId) && targetAdvertisers.some(t => normalizeAdvName(advName).includes(normalizeAdvName(t)))) {
             offersToScan.push({ id: offerId, name: offerName, targetUrl: `/en/offers/${offerId}/edit` });
         }
     });
@@ -39,9 +42,10 @@
     let csvContent = "Offer_ID;Offer_Name;Payout\n";
     let processed = 0;
 
-    async function fetchOfferPayout(offer) {
+    async function fetchOfferPayout(offer, retries = 3) {
         try {
             let response = await fetch(offer.targetUrl);
+            if (!response.ok) throw new Error("HTTP " + response.status);
             let html = await response.text();
 
             // Zastosowanie ulepszonego parsera numerycznego na wzór skryptu generującego (krok8_tm_payout)
@@ -80,8 +84,17 @@
 
             return `${offer.id};${safeName};${totalPayout}\n`;
         } catch (e) {
-            console.error(`❌ Błąd przy ofercie ${offer.id}:`, e);
-            return `${offer.id};${offer.name};0.00\n`;
+            if (retries > 0) {
+                console.warn(`⏳ Serwer odrzuca ofertę ${offer.id} (${e.message}). Ponawiam za chwilę...`);
+                await new Promise(r => setTimeout(r, 1500));
+                return fetchOfferPayout(offer, retries - 1);
+            }
+            console.error(`❌ Całkowity błąd przy ofercie ${offer.id} (pomięto po 3 próbach):`, e);
+            // Nazwa musi przejść przez to samo czyszczenie co ścieżka sukcesu — inaczej wbudowany
+            // "\n" w nazwie oferty (np. dwuliniowa komórka "Nazwa\nMainstream -") łamie strukturę
+            // CSV i psuje parsowanie kolejnych wierszy w pliku.
+            let safeName = (offer.name || "Brak Nazwy").replace(/;/g, ',').replace(/[\r\n]+/g, ' ').trim();
+            return `${offer.id};${safeName};0.00\n`;
         }
     }
 
@@ -98,13 +111,27 @@
 
     console.log("✅ GOTOWE! Generowanie pliku CSV...");
 
+    const filename = "adrice_offers_prices.csv";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", "adrice_offers_prices.csv");
+    link.setAttribute("download", filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Trwały przycisk-awaryjny — gdyby okno zapisu zostało przypadkiem anulowane/zamknięte,
+    // Blob URL nadal żyje w pamięci karty aż do odświeżenia strony, więc można pobrać ponownie stąd.
+    document.querySelectorAll('#__scraperDownloadBtn').forEach(el => el.remove());
+    const btn = document.createElement("a");
+    btn.id = '__scraperDownloadBtn';
+    btn.href = url;
+    btn.download = filename;
+    btn.textContent = `📥 Pobierz CSV ponownie (${resultsAll.length} ofert)`;
+    btn.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999999;background:#1a7f37;color:#fff;padding:10px 16px;border-radius:6px;font:14px/1.4 sans-serif;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    document.body.appendChild(btn);
+    console.log("💾 Gdyby okno zapisu zniknęło/anulowało się — w prawym dolnym rogu strony jest przycisk 'Pobierz CSV ponownie' (działa dopóki nie odświeżysz strony).");
 })();
