@@ -286,6 +286,7 @@
             <div id="modalContent"></div>
             <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
                 <button id="copyBatchBtn" class="btn-action" style="background: rgba(59, 130, 246, 0.2); border-color: #3b82f6;">📋 Kopiuj do Excela (CSV)</button>
+                <button id="copyQuickBooksBtn" class="btn-action" style="background: rgba(16, 185, 129, 0.15); border-color: var(--success); color: #34d399; font-weight: bold;">📗 Kopiuj do QuickBooks</button>
                 <button class="btn-action" onclick="closeModal()" style="padding: 0.8rem 2rem;">Zamknij</button>
             </div>
         </div>
@@ -301,6 +302,21 @@
             localStorage.setItem('adrice_invoicing_db_v2', JSON.stringify(invoicingDB));
             renderAll();
         }
+
+        // Synchronizacja między kartami: jeśli w tle jest otwarty index.html i w międzyczasie
+        // zatwierdzi tam nową fakturę (albo ta karta Historii siedzi otwarta od dawna), nasza
+        // kopia invoicingDB w pamięci jest stara. Bez tego kolejny cofnij/edytuj-numer zapisałby
+        // się na bazie tej starej kopii i skasował to, co zatwierdzono w innej karcie w międzyczasie.
+        // 'storage' odpala się w innych kartach tego samego originu przy każdym zapisie — łapiemy
+        // to tutaj, żeby nasza kopia zawsze była świeża zanim cokolwiek zapiszemy.
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'adrice_invoicing_db_v2' && e.newValue) {
+                try {
+                    invoicingDB = JSON.parse(e.newValue);
+                    renderAll();
+                } catch (err) { /* ignoruj niepoprawny JSON */ }
+            }
+        });
 
         function exportDB() {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(invoicingDB, null, 2));
@@ -405,15 +421,30 @@
 
                 // Sum stat
                 let totalLeads = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + it.delta, 0), 0);
-                let totalEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0) + (l.adjustments || []).reduce((s, adj) => s + adj.amount, 0), 0);
-                
+                // Wartość miesiąca = leady × cena. Korekty z salda (log.adjustments) są tylko mechaniką
+                // rozliczenia na fakturze M+1 — ich leady i € są już policzone w M jako wpis
+                // PRZENIESIENIE_DO_SALDA, więc NIE wchodzą do sumy miesiąca faktury (podwójne liczenie).
+                // Wyjątek: rekoncyliacja (tylko €, bez leadów) — przypisujemy ją do miesiąca, którego dotyczy
+                // (adj.month), z faktur dowolnego miesiąca.
+                let itemsEuro = logs.reduce((sum, l) => sum + l.items.reduce((s, it) => s + (it.delta * it.price), 0), 0);
+                let reconEuro = 0;
+                Object.values(invoicingDB).forEach(mdb => {
+                    ((mdb && mdb.logs) || []).forEach(l => {
+                        if (!types.includes(l.type)) return;
+                        (l.adjustments || []).forEach(adj => {
+                            if (adj.source === 'reconciliation' && adj.month === month) reconEuro += adj.amount;
+                        });
+                    });
+                });
+                let totalEuro = itemsEuro + reconEuro;
+
                 // NOWOŚĆ: Podsumowanie Produktów
                 const summaryHtml = renderMonthlySummary(logs, type);
 
                 let html = `
                     <div class="summary-card">
                         <div><div class="stat-label">Lidów w tym miesiącu</div><div class="stat-value">${totalLeads}</div></div>
-                        <div><div class="stat-label">Wartość całkowita</div><div class="stat-value" style="color:var(--accent)">${totalEuro.toFixed(2)} €</div></div>
+                        <div><div class="stat-label">Wartość całkowita</div><div class="stat-value" style="color:var(--accent)">${totalEuro.toFixed(2)} €</div>${reconEuro !== 0 ? `<div class="stat-label" style="margin-top:0.25rem">w tym rekoncyliacja z kolejnych faktur: ${reconEuro.toFixed(2)} €</div>` : ''}</div>
                     </div>
                     ${summaryHtml}
                     <table class="history-table">
@@ -658,6 +689,40 @@
                     showNotif("Skopiowano dane do schowka! Możesz wkleić do Excela.");
                 });
             };
+
+            // Format QuickBooks — 1:1 ze schematem copyToQuickBooks() z index.html: Title / (puste) /
+            // Qty / Rate / Amount, kropki dziesiętne (toFixed zawsze daje '.', niezależnie od locale),
+            // tylko pozycje na plus (spadki na fakturze z zamkniętego miesiąca idą przez saldo, nie
+            // jako brzydka pojedyncza linia na minus), korekty z salda zwinięte w jedną linię dopłaty
+            // i jedną linię rabatu.
+            document.getElementById('copyQuickBooksBtn').onclick = () => {
+                let tsv = "";
+                log.items.forEach(it => {
+                    if (it.delta > 0) {
+                        let title = it.title.replace(/\t/g, ' ').replace(/\n/g, ' ');
+                        tsv += `${title}\t\t${it.delta}\t${it.price.toFixed(2)}\t${(it.delta * it.price).toFixed(2)}\n`;
+                    }
+                });
+                const positiveAdj = (log.adjustments || []).filter(a => a.amount > 0);
+                const negativeAdj = (log.adjustments || []).filter(a => a.amount < 0);
+                if (positiveAdj.length > 0) {
+                    const total = positiveAdj.reduce((s, a) => s + a.amount, 0);
+                    const months = [...new Set(positiveAdj.map(a => a.month))].join('/');
+                    tsv += `Korekta / Dopłata za: ${months}\t\t1\t${total.toFixed(2)}\t${total.toFixed(2)}\n`;
+                }
+                if (negativeAdj.length > 0) {
+                    const total = negativeAdj.reduce((s, a) => s + a.amount, 0);
+                    const months = [...new Set(negativeAdj.map(a => a.month))].join('/');
+                    tsv += `Korekta / Rabat za: ${months}\t\t1\t${total.toFixed(2)}\t${total.toFixed(2)}\n`;
+                }
+                if (!tsv) {
+                    showNotif("Brak pozycji do skopiowania (wszystkie wartości ≤ 0).");
+                    return;
+                }
+                navigator.clipboard.writeText(tsv).then(() => {
+                    showNotif("Skopiowano format QuickBooks do schowka!");
+                });
+            };
         }
 
         window.updateHistoryItemDelta = function(logIdx, itemIdx, newDelta) {
@@ -710,42 +775,98 @@
             document.getElementById('detailsModal').style.display = 'none';
         }
 
+        // Odtwarza liczniki dla podanych offerId od zera, sumując delty ze WSZYSTKICH
+        // aktualnie aktywnych logów danego typu (db.logs — po ewentualnym splice).
+        // Incydent 2026-09-24: undo()/redo() dawniej ustawiały licznik na sztywno na
+        // zapisany beforeState/curr z TEJ JEDNEJ faktury. Jeśli po niej ktoś zatwierdził
+        // KOLEJNĄ fakturę dotykającą tych samych ofert (typowe przy poprawianiu błędnej
+        // faktury nową, zamiast najpierw cofać starą), cofnięcie starszej wpisywało stan
+        // sprzed niej i bezpowrotnie zamazywało wkład nowszej — mimo że jej log zostawał
+        // aktywny i liczył się do sum w historii. Replay z logów jest odporny na kolejność:
+        // liczy się tylko to, co jest AKTUALNIE aktywne, niezależnie kiedy i w jakiej
+        // kolejności faktury były cofane/przywracane.
+        function recomputeCounters(db, typeKey, offerIds) {
+            offerIds.forEach(id => { db[typeKey][id] = 0; });
+            db.logs.filter(l => l.type.toLowerCase() === typeKey
+                && l.invoiceNumber !== 'PRZENIESIENIE_DO_SALDA' && l.invoiceNumber !== 'REKONCYLIACJA_DO_SALDA'
+            ).forEach(l => {
+                l.items.forEach(it => {
+                    if (offerIds.has(it.id)) db[typeKey][it.id] = (db[typeKey][it.id] || 0) + it.delta;
+                });
+            });
+        }
+
         window.undo = function(idx) {
             const m = document.getElementById('activeMonth').value;
             const db = invoicingDB[m];
             const log = db.logs[idx];
             if(!confirm("Czy na pewno cofnąć to zatwierdzenie?")) return;
 
-            // Revert counts
             const typeKey = log.type.toLowerCase();
-            Object.keys(log.beforeState).forEach(id => {
-                db[typeKey][id] = log.beforeState[id];
-            });
+            const affectedIds = new Set(log.items.map(it => it.id));
 
-            // Move to redo stack
+            // Move to redo stack PRZED przeliczeniem liczników — recomputeCounters czyta
+            // db.logs, więc cofana faktura musi już być z niego usunięta.
             if(!db.redoLogs) db.redoLogs = [];
             db.redoLogs.push(db.logs.splice(idx, 1)[0]);
-            
+
+            recomputeCounters(db, typeKey, affectedIds);
+
+            // Korekty/rabaty z salda skonsumowane przez tę fakturę (log.adjustments) wracają
+            // na status 'pending', inaczej zostają na zawsze oznaczone 'used' przypisane do
+            // faktury, która już nie istnieje w historii.
+            const restoredCount = restoreAdjustmentsStatus(log.adjustments, 'pending');
+
             saveDB();
-            showNotif("Cofnięto fakturę. Odśwież Hub aby zobaczyć zmiany.");
+            showNotif(restoredCount > 0
+                ? `Cofnięto fakturę i przywrócono ${restoredCount} korekt(y) do salda. Odśwież Hub aby zobaczyć zmiany.`
+                : "Cofnięto fakturę. Odśwież Hub aby zobaczyć zmiany.");
         }
 
         window.redo = function(idx) {
             const m = document.getElementById('activeMonth').value;
             const db = invoicingDB[m];
             const log = db.redoLogs[idx];
-            
-            // Re-apply counts
-            const typeKey = log.type.toLowerCase();
-            log.items.forEach(it => {
-                db[typeKey][it.id] = it.curr;
-            });
 
-            // Move back to logs
+            const typeKey = log.type.toLowerCase();
+            const affectedIds = new Set(log.items.map(it => it.id));
+
+            // Move back to logs PRZED przeliczeniem — patrz komentarz przy recomputeCounters.
             db.logs.push(db.redoLogs.splice(idx, 1)[0]);
-            
+
+            recomputeCounters(db, typeKey, affectedIds);
+
+            // Symetrycznie do undo: korekty ponownie skonsumowane przez tę fakturę.
+            restoreAdjustmentsStatus(log.adjustments, 'used', log.invoiceNumber);
+
             saveDB();
             showNotif("Przywrócono fakturę.");
+        }
+
+        // Ustawia status korekt z salda (adrice_pending_adjustments) skonsumowanych przez daną
+        // fakturę na 'pending' (undo) albo z powrotem na 'used' (redo). history.html nie trzyma
+        // własnej kopii pendingAdjustments w pamięci (w przeciwieństwie do index.html), więc
+        // czyta i zapisuje localStorage bezpośrednio przy każdym wywołaniu.
+        function restoreAdjustmentsStatus(logAdjustments, newStatus, usedByInvoice) {
+            if (!logAdjustments || logAdjustments.length === 0) return 0;
+            let pending = JSON.parse(localStorage.getItem('adrice_pending_adjustments')) || [];
+            const consumedIds = new Set(logAdjustments.map(a => a.id));
+            let count = 0;
+            pending.forEach(a => {
+                if (consumedIds.has(a.id)) {
+                    a.status = newStatus;
+                    if (newStatus === 'used') {
+                        a.usedByInvoice = usedByInvoice;
+                    } else {
+                        delete a.usedByInvoice;
+                    }
+                    count++;
+                }
+            });
+            if (count > 0) {
+                localStorage.setItem('adrice_pending_adjustments', JSON.stringify(pending));
+            }
+            return count;
         }
 
         window.moveLogToMonth = function(idx) {
