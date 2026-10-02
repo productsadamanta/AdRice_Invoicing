@@ -9,8 +9,13 @@ tłumaczyć wszystkiego od zera.
 zmian z historii AdRice, wyłączenie ofert ze zmianą ceny z automatycznej sumy + ręczna korekta,
 eksport korekt do Invoicing Hub z bezpiecznym zatwierdzaniem/usuwaniem per kraj, scalanie na
 prawdziwej fakturze w jedną pozycję) jest **zaimplementowana, przetestowana na prawdziwych danych
-użytkownika i działa poprawnie** — patrz sekcje 0.2–0.2.4 po szczegóły każdej poprawki. Następne
-zadanie (patrz sekcja 9, punkt 0) to **wyłącznie upraszczanie WYGLĄDU**, nie logiki.
+użytkownika i działa poprawnie** — patrz sekcje 0.2–0.2.4 po szczegóły każdej poprawki. **UWAGA:**
+dwuetapowy przepływ "zgłoś w reconciliation.html -> zatwierdź w osobnym panelu index.html" opisany w
+0.2–0.2.4 został w **0.3 (2026-08-13) ZASTĄPIONY** przepływem jednoetapowym (bezpośredni zapis do
+salda) — czytaj 0.3 PRZED 0.2, jeśli pracujesz nad zgłaszaniem/edycją/cofaniem korekt. Panel "⚡ Oferty
+ze zmianą ceny" (szybki skan) dostał też **0.4 (2026-08-13)** rozszerzone okno skanowania (do dziś,
+nie tylko do końca miesiąca) — patrz 0.4. Następne zadanie (patrz sekcja 9, punkt 0) to **wyłącznie
+upraszczanie WYGLĄDU**, nie logiki.
 
 ## 0. DOPISEK 2026-07-29 — PRAWDZIWA przyczyna rozbieżności "ręczna suma vs raport narzędzia" (był realny bug, POPRAWIONY)
 
@@ -312,6 +317,127 @@ Dwa drobne dopisy na tę samą, wciąż żywą funkcję:
    / Dopłata|Rabat za: {unikalne miesiące złączone '/'}" (bez wzmianki o źródle). Zweryfikowane
    matematycznie (Node): 3 korekty HU (167+8+16) → jedna linia "Korekta / Dopłata za: 2026-06" =
    191,00 €.
+
+## 0.3 DOPISEK 2026-08-13 — usunięcie osobnego panelu zatwierdzania; korekty trafiają OD RAZU do oczekującego salda
+
+Użytkownik: zgłoszenia z rekoncyliacji nie mają już przechodzić przez osobną sekcję "🧾 Oczekujące
+korekty z Rekoncyliacji" w `index.html` wymagającą ręcznego zatwierdzenia — mają trafiać **od razu**
+tam, gdzie normalnie wchodzą dopłaty/rabaty po zamknięciu miesiąca, czyli do zwykłego "Oczekującego
+Salda" (`pendingAdjustments`), tym samym mechanizmem co stare "przenieś do salda". Zatwierdzanie
+(konsumpcja na kolejnej fakturze przez `confirmInvoice`) ma działać identycznie jak dla zwykłych
+korekt — bez zmian w tym kodzie.
+
+**Zaimplementowane:**
+1. `reconciliation.html` (`submitReconciliationAdjustment`, w Sekcji C, panel "⚡ Oferty ze zmianą
+   ceny") pisze teraz **BEZPOŚREDNIO** do `localStorage['adrice_pending_adjustments']` (ten sam klucz
+   co `index.html`) + od razu dopisuje log `REKONCYLIACJA_DO_SALDA` do
+   `invoicingDB[month].logs` (`delta:1, price:kwota`, identyczny wzorzec co poprzednio) — **bez**
+   żadnego kroku pośredniego/zatwierdzania. Klik "Zapisz korektę" = korekta jest już w saldzie.
+2. `index.html` stracił **CAŁY** panel "🧾 Oczekujące korekty z Rekoncyliacji" i cały kod go
+   obsługujący (`loadReconciliationStaging`/`saveReconciliationStaging`/
+   `syncReconciliationStagingWithLedger`/`pushReconciliationEntryToLedger`/
+   `removeReconciliationEntry`/`renderApprovedReconciliationSection`/`renderReconciliationPending`/
+   `approveReconciliationCountry`/`rejectReconciliationCountry`/`approveReconciliationAdjustment`/
+   `rejectReconciliationAdjustment` — wszystko usunięte). Zwykły panel "Oczekujące Salda"
+   (`renderSidebarBalances`, niezmieniony) już agreguje WSZYSTKIE `pendingAdjustments` per konto w
+   JEDEN wiersz do wyświetlenia — to naturalnie realizuje życzenie "jedna pozycja per kraj" bez
+   żadnego dodatkowego mergowania; nadal pokazuje breakdown "w tym X € z rekoncyliacji".
+3. **Świadoma decyzja projektowa:** każda zgłoszona korekta (per oferta) nadal tworzy WŁASNY,
+   osobny wpis w `pendingAdjustments` (nie merguje się w jeden rekord in-place z inną korektą tego
+   samego kraju) — dokładnie tak jak zawsze robił stary mechanizm "przenieś do salda" (wielokrotne
+   kliknięcia = wielokrotne wpisy). "Jedna pozycja per kraj" to więc własność WIDOKU (sidebar sumuje
+   przy renderowaniu), nie własność struktury danych — rozważono i odrzucono in-place mergowanie
+   wpisów (skomplikowałoby konsumpcję na fakturze, gdy korekty dla tego samego kraju dotyczą różnych
+   miesięcy — pole `month` jest per-wpis i decyduje o tym, kiedy korekta może zostać skonsumowana).
+4. `LS_RECONCILIATION_ADJUSTMENTS` (`adrice_reconciliation_adjustments`) **nie zniknął**, ale zmienił
+   rolę: to już nie staging wymagający zatwierdzenia (`status: 'pending_import'/'imported'`), tylko
+   czysto lokalna "książeczka adresowa" tego narzędzia (offerId/kraj/miesiąc → `pendingAdjId`), która
+   pozwala pokazać "już wpisano X €" przy tej ofercie i obsłużyć edycję/cofnięcie **stąd**, dopóki
+   powiązany wpis w `pendingAdjustments` ma `status: 'pending'`. Status "rozliczone na fakturze" jest
+   ZAWSZE czytany na żywo z `pendingAdjustments` (przez `pendingAdjId`) — **nigdy duplikowany** w tej
+   książeczce, więc nie ma ryzyka rozjazdu jak przy starym `syncReconciliationStagingWithLedger`
+   (który był potrzebny właśnie po to, żeby gonić taki rozjazd — teraz zbędny, usunięty).
+5. Nowy przycisk "🗑️ Usuń" bezpośrednio przy formularzu korekty w `reconciliation.html`
+   (`window.removeReconciliationCorrection`) — zastępuje starą ścieżkę usuwania, która żyła w
+   `index.html` (`removeReconciliationEntry`). Ta sama blokada bezpieczeństwa co poprzednio: odmawia
+   jeśli powiązany wpis w `pendingAdjustments` ma już `status !== 'pending'` (czyli trafił na
+   prawdziwą fakturę) — trzeba by wtedy poprawiać tamtą fakturę ręcznie.
+
+**Zweryfikowane (Node, `vm` na wyekstrahowanym kodzie ze skryptu strony, symulowany `localStorage` —
+przeglądarkowy podgląd dla plików `file://` poza katalogiem podglądu okazał się renderować statyczny
+snapshot zamiast żywej strony, więc nie nadawał się do tego testu):**
+- Nowa korekta pisze OD RAZU 1 wpis do `pendingAdjustments` (`status:'pending'`, `source:
+  'reconciliation'`) + 1 log `REKONCYLIACJA_DO_SALDA` w `invoicingDB[miesiąc].logs` — bez żadnego
+  kroku pośredniego.
+- Druga korekta, inna oferta, ten sam kraj/miesiąc → osobny wpis w `pendingAdjustments` (2 wpisy
+  łącznie), suma poprawna (97 + (-50) = 47).
+- Edycja istniejącej korekty (97€ → 90€) aktualizuje ISTNIEJĄCY wpis w miejscu (wciąż 2 wpisy, nowa
+  suma 40€) — nie tworzy duplikatu, aktualizuje też `price` w powiązanym logu `invoicingDB`.
+- `getReconciliationAdjustmentFor` poprawnie pokazuje `status:'used'` natychmiast po ręcznym
+  ustawieniu tego statusu na powiązanym wpisie `pendingAdjustments` (symulacja konsumpcji przez
+  `confirmInvoice`) — bez żadnej dodatkowej propagacji.
+- Próba edycji/cofnięcia korekty ze statusem `'used'` poprawnie zablokowana komunikatem z numerem
+  faktury.
+- Cofnięcie wciąż-`pending` korekty poprawnie usuwa DOKŁADNIE jej wpis z `pendingAdjustments` i jej
+  log z `invoicingDB[miesiąc].logs`, zostawiając nietkniętą drugą (już `used`) korektę.
+- Logika sidebar-agregacji w `index.html` (`renderSidebarBalances`, nieruszana) poprawnie sumuje
+  wiele osobnych wpisów `pendingAdjustments` tego samego konta (w tym miks starych, zwykłych korekt
+  salda i nowych korekt rekoncyliacji) w JEDEN wyświetlany wiersz per kraj.
+
+**Nie testowane end-to-end w prawdziwej przeglądarce** (tylko logika w Node/vm) — przy pierwszym
+realnym użyciu warto sprawdzić w praktyce w przeglądarce, że oba pliki (`reconciliation.html`,
+`index.html`) otwarte z tego samego katalogu faktycznie współdzielą `localStorage` (to było już
+wcześniej potwierdzone dla starego mechanizmu w sekcji 0.2, kod odpowiedzialny za to się nie zmienił,
+więc ryzyko niskie, ale nie zweryfikowane ponownie po tej zmianie).
+
+## 0.4 DOPISEK 2026-08-13 — panel "⚡ Oferty ze zmianą ceny" skanuje aż do dziś, nie tylko do końca miesiąca
+
+Użytkownik: faktury KONTROLA za resztę miesiąca wystawia z opóźnieniem (np. za 29-30 czerwca
+wystawione 3 sierpnia), a korekty AUTOMAT za dany miesiąc robi jeszcze przez kilka tygodni PO jego
+zamknięciu (przykład: korekty za czerwiec 8/15/22/29 lipca). Te późne korekty używają ceny AKTUALNEJ
+W DNIU KOREKTY, nie ceny z miesiąca sprawdzanego — więc jeśli cena oferty zmieniła się w międzyczasie
+(w lipcu), granica tej zmiany nigdy nie wypadnie w czerwcu, mimo że dotyczy leadów z czerwca.
+
+**Ważne rozróżnienie, które wypłynęło w tej rozmowie:** to NIE jest problem z samą matematyką —
+pełny raport (`computeReconciliation`/"Oblicz Rozbieżności") już to poprawnie łapie bez żadnych
+zmian, bo "Zafakturowano" (`computeActualForMonth`) sumuje dosłownie to, co fizycznie leży w logach
+danego miesiąca (w tym późną korektę po nowej cenie), a "Powinno Być" (`computeShouldBeForMonth`)
+liczy cenę z realnej daty powstania leada przez `priceAt()` — jeśli granica zmiany nie wypada w
+danym miesiącu, `computePriceChangesInMonth` nie oznacza tej oferty jako `manual-review`, więc
+delta (różna cena mimo tej samej liczby leadów) poprawnie wychodzi jako NIEDOFAKTUROWANO/
+NADFAKTUROWANO — edge case opisany już w sekcji 0.2.1 punkt 2 ("cross-month-boundary"), nie nowy bug.
+Problemem był WYŁĄCZNIE panel-podpowiedź "⚡ Oferty ze zmianą ceny" (używany przed kliknięciem
+"Oblicz Rozbieżności", jako szybka lista "co warto sprawdzić") — użytkownik świadomie NIE chce
+polegać na pełnym raporcie ("nieczytelny... generuje więcej pracy niż konieczne"), więc chce mieć tę
+podpowiedź kompletną samą w sobie.
+
+**Zaimplementowane:**
+- `computePriceChangesInMonth(targetMonth)` — BEZ ZMIAN w zachowaniu (nadal tylko granice w obrębie
+  kalendarzowego miesiąca), bo nadal używana do tagowania `manual-review` w PEŁNYM raporcie
+  (`computeShouldBeForMonth`) — świadomie NIE rozszerzona, żeby nie zmieniać flagowania tam, o co
+  użytkownik nie prosił. Wydzielona wspólna logika do nowej `computePriceChangesInWindow(start, end)`.
+- Nowa `computePriceChangesUntilToday(targetMonth)` — skanuje od początku wybranego miesiąca AŻ DO
+  `new Date()` (dnia generowania zestawienia), używana WYŁĄCZNIE przez panel
+  `renderPriceChangesThisMonth()` (podmieniono `computePriceChangesInMonth` → `computePriceChangesUntilToday`
+  w tym jednym miejscu wywołania).
+- `getPayoutOnlyHistoryDatesInMonth(offerId, monthKey, windowEnd)` — dostał opcjonalny trzeci
+  parametr (`windowEnd`, domyślnie koniec miesiąca), żeby diagnostyka "⚠️ niezgodność" (porównanie
+  liczby zmian payoutu w historii AdRice vs liczby przejść cenowych w fakturach) używała TEGO SAMEGO
+  szerszego okna co reszta panelu — inaczej każda oferta złapana przez rozszerzone okno
+  automatycznie pokazywałaby fałszywą "niezgodność" (bo historia AdRice liczona by była tylko do
+  końca miesiąca, a przejścia cenowe już do dziś).
+- Tytuł panelu i pusty stan zaktualizowane ("od wybranego miesiąca do dziś" zamiast "w wybranym
+  miesiącu"), workflow na górze strony (dodany wcześniej w tej samej sesji) też zaktualizowany.
+
+**Zweryfikowane (Node, `vm` na wyekstrahowanym kodzie skryptu, syntetyczne dane):** oferta ze stałą
+ceną 23€ przez czerwiec, korekta AUTOMAT z 8 sierpnia po cenie 20€ (symulacja spóźnionej korekty za
+czerwiec) → `computePriceChangesInMonth('2026-06')` poprawnie zwraca `[]` (granica przybliżona
+wypada w połowie lipca, poza czerwcem), `computePriceChangesUntilToday('2026-06')` poprawnie łapie tę
+samą ofertę (granica `2026-07-18`, `confidence: 'approx'`). Pierwsza próba z mniej realistycznymi
+datami testowymi dała fałszywie identyczny wynik dla obu funkcji (przybliżona granica akurat wypadła
+w czerwcu mimo dat testowych z czerwca/lipca) — nauka: przy testowaniu przybliżonych granic
+(`findBoundaryDate`'s `approx` fallback = środek okna) dobierać daty testowe świadomie z dużym
+odstępem, żeby środek okna faktycznie wypadł poza sprawdzanym miesiącem.
 
 ## 1. Cel narzędzia
 

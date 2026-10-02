@@ -1,0 +1,12 @@
+{
+  "advertiser_notes": {
+    "TrendiSupply": [
+      "Why some offers show NEGATIVE leads and values (red, minus sign): INV-068 (06.05.2026, billing April leads) contains a credit of EUR 3,506.00 (-210 leads): the Tiller offers #4107 (DE), #4108 (LT), #4109 (SK), #4110 (LV) and #3523 (CZ), and one lead of #4032 (CZ). Before this invoice the Hub had these offers recorded with more leads than Amsped now reports (for example #4108: 445 recorded vs 338 reported = -107 leads x EUR 17 = -EUR 1,819), so the difference was credited. Those offers have no positive leads on a May invoice, so for the month they show only the credit.",
+      "The credit was applied once, on INV-068: INV-068 = EUR 3,939.00 of leads minus EUR 3,506.00 credit = EUR 433.00 (as on the statement). INV-054 (29.04.2026) is EUR 9,733.00 in QuickBooks without any credit, although the Hub log of INV-054 lists the same six credit lines.",
+      "INV-085 (13.05.2026) also carries one April correction of -1 lead / -EUR 17.00 for #884 (LT). All other negative lines in this sheet come from these two invoices."
+    ]
+  },
+  "resolved_warnings": {
+    "INV-068 has 6 line(s)": "INV-068 repeats the six credit lines (EUR -3,506.00) that the Hub also logged on INV-054. In QuickBooks INV-054 is EUR 9,733.00 with no credit, so the credit was applied once, on INV-068 (see the note on the TrendiSupply sheet). Checked 01.10.2026."
+  }
+}
